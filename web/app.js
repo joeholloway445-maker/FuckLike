@@ -4,6 +4,7 @@
   // Backend: set to your live gateway when ready, e.g. "https://api.fucklike.ai"
   // Leave empty to use local replies (works offline right now)
   const API_BASE = "";
+  const CHAT_TIMEOUT_MS = 15000;
 
   const PRESETS = [
     { id: "luna", name: "Luna", style: "realistic", personality: "playful", age: 23, tag: "Playful", live: true },
@@ -219,6 +220,41 @@
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  function localReply(personality) {
+    var pool = REPLIES[personality] || REPLIES.playful;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // Calls the live HDV gateway's companion chat endpoint. Falls back to a local canned
+  // reply on any network error, timeout, or non-OK response so chat never hard-fails.
+  function fetchCompanionReply(c, text) {
+    var history = (c.messages || []).slice(-20).map(function (m) {
+      return { role: m.role === "user" ? "user" : "bot", text: m.text };
+    });
+    var controller = ("AbortController" in window) ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, CHAT_TIMEOUT_MS) : null;
+
+    return fetch(API_BASE + "/v1/companion/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        persona: { name: c.name, personality: c.personality, backstory: c.backstory },
+        history: history,
+        message: text
+      }),
+      signal: controller ? controller.signal : undefined
+    }).then(function (res) {
+      if (timer) clearTimeout(timer);
+      if (!res.ok) throw new Error("gateway error " + res.status);
+      return res.json();
+    }).then(function (data) {
+      return (data && typeof data.reply === "string" && data.reply) || localReply(c.personality);
+    }).catch(function () {
+      if (timer) clearTimeout(timer);
+      return localReply(c.personality);
+    });
+  }
+
   function initChat() {
     $("#chat-form").onsubmit = function (e) {
       e.preventDefault();
@@ -230,11 +266,15 @@
       c.messages = c.messages || [];
       c.messages.push({ role: "user", text: text });
       input.value = "";
-      var pool = REPLIES[c.personality] || REPLIES.playful;
-      var reply = pool[Math.floor(Math.random() * pool.length)];
-      c.messages.push({ role: "bot", text: reply });
       save();
       openChat(c.id);
+
+      var respond = API_BASE ? fetchCompanionReply(c, text) : Promise.resolve(localReply(c.personality));
+      respond.then(function (reply) {
+        c.messages.push({ role: "bot", text: reply });
+        save();
+        if (state.activeId === c.id) openChat(c.id);
+      });
     };
   }
 
