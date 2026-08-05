@@ -57,7 +57,11 @@ const API_BASE = "";  // set to "https://api.fucklike.ai" when gateway is live
 1. Follow `DEPLOY.md` on the Hostinger KVM4.
 2. Clone/run `HDV_Foundation` as the API (`api.fucklike.ai`).
 3. Serve `web/` as `fucklike.ai`.
-4. Set `API_BASE` in `app.js` to the live gateway and replace local replies with real `/v1/intent` (or equivalent) calls.
+4. Set `API_BASE` in `app.js` to the live gateway. **Already wired** — `app.js` calls
+   `POST /v1/companion/chat` (not `/v1/intent`; that endpoint is HOPE's task-routing/governance
+   surface, not a persona chat surface — see `HDV_Foundation/companion/`) and falls back to the
+   local personality pool on any network failure/timeout, so chat degrades gracefully instead of
+   breaking. No frontend code changes needed to go live — only the `API_BASE` value.
 
 ### Goal B — Spatial / 3D
 

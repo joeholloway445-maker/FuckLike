@@ -109,7 +109,9 @@ Make sure DNS A records for `fucklike.ai` and `api.fucklike.ai` point at your VP
 - https://fucklike.ai → FuckLike companion app (create, chat, gallery, settings)
 - https://api.fucklike.ai → your HDV backend
 
-Chat will still use local replies until `API_BASE` is set in `web/app.js` to `https://api.fucklike.ai`.
+Chat will still use local replies until `API_BASE` is set in `web/app.js` to `https://api.fucklike.ai`
+— once set, chat calls the gateway's `POST /v1/companion/chat` (see `HDV_Foundation/companion/`)
+and falls back to local replies automatically if the gateway is unreachable.
 
 ---
 
