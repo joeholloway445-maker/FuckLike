@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FuckLike — Create Your Perfect AI Companion</title>
+  <meta name="description" content="Create your perfect AI companion. Chat, images, voice, 3D spaces. Hardware optional." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="age-gate" class="screen">
+      <div class="gate-card">
+        <h1>Fuck<span>Like</span></h1>
+        <p>This platform is for adults only.</p>
+        <p class="muted">You must be 18 or older to continue.</p>
+        <div class="gate-btns">
+          <button id="btn-enter" class="btn btn-primary">I am 18 or older</button>
+          <button id="btn-leave" class="btn btn-ghost">Leave</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="main" class="hidden">
+      <nav class="nav">
+        <a class="logo" href="#" data-view="home">Fuck<span>Like</span></a>
+        <div class="nav-links">
+          <button data-view="gallery" class="nav-btn">Companions</button>
+          <button data-view="create" class="nav-btn">Create</button>
+          <button data-view="chat" class="nav-btn">Chat</button>
+          <button data-view="settings" class="nav-btn">Settings</button>
+        </div>
+      </nav>
+
+      <section id="view-home" class="view">
+        <div class="hero">
+          <h1>Create your perfect<br><em>AI companion</em></h1>
+          <p class="sub">Shape her look, personality, and desire. Chat with images, voice, and real chemistry — 24/7.</p>
+          <div class="cta-row">
+            <button class="btn btn-primary" data-view="create">Make your companion</button>
+            <button class="btn btn-secondary" data-view="gallery">Browse companions</button>
+          </div>
+          <p class="trust">18+ · Private · Hardware optional · No download required</p>
+        </div>
+      </section>
+
+      <section id="view-gallery" class="view hidden">
+        <div class="section-head">
+          <h2>Meet companions</h2>
+          <div class="filters" id="filters">
+            <button class="filter active" data-filter="all">All</button>
+            <button class="filter" data-filter="realistic">Realistic</button>
+            <button class="filter" data-filter="anime">Anime</button>
+            <button class="filter" data-filter="playful">Playful</button>
+            <button class="filter" data-filter="romantic">Romantic</button>
+          </div>
+        </div>
+        <div class="grid" id="gallery-grid"></div>
+      </section>
+
+      <section id="view-create" class="view hidden">
+        <div class="create-wrap">
+          <h2>Make your companion</h2>
+          <form id="create-form">
+            <label>Name
+              <input type="text" id="c-name" placeholder="Her name" required maxlength="24" />
+            </label>
+            <label>Style
+              <select id="c-style">
+                <option value="realistic">Realistic</option>
+                <option value="anime">Anime</option>
+              </select>
+            </label>
+            <label>Personality
+              <select id="c-personality">
+                <option value="playful">Playful</option>
+                <option value="romantic">Romantic</option>
+                <option value="bratty">Bratty</option>
+                <option value="dominant">Dominant</option>
+                <option value="soft">Soft & caring</option>
+                <option value="mysterious">Mysterious</option>
+              </select>
+            </label>
+            <label>Age appearance
+              <select id="c-age">
+                <option value="20">20</option>
+                <option value="22">22</option>
+                <option value="24" selected>24</option>
+                <option value="26">26</option>
+                <option value="28">28</option>
+                <option value="30">30</option>
+              </select>
+            </label>
+            <label>Voice
+              <select id="c-voice">
+                <option value="soft">Soft</option>
+                <option value="warm">Warm</option>
+                <option value="confident">Confident</option>
+                <option value="breathy">Breathy</option>
+              </select>
+            </label>
+            <label>Backstory <span class="optional">(optional)</span>
+              <textarea id="c-backstory" rows="3" placeholder="Who is she? What does she want?"></textarea>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="c-adult" />
+              Enable adult / intimate content for this companion
+            </label>
+            <button type="submit" class="btn btn-primary full">Create companion</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-chat" class="view hidden">
+        <div class="chat-layout">
+          <aside class="chat-sidebar">
+            <h3>Your companions</h3>
+            <div id="chat-list"></div>
+            <button class="btn btn-secondary full" data-view="create">+ New companion</button>
+          </aside>
+          <div class="chat-main">
+            <div id="chat-header" class="chat-header">Select a companion</div>
+            <div id="chat-messages" class="chat-messages"></div>
+            <form id="chat-form" class="chat-input">
+              <input type="text" id="chat-text" placeholder="Say something..." autocomplete="off" disabled />
+              <button type="submit" class="btn btn-primary" disabled>Send</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view hidden">
+        <div class="settings-wrap">
+          <h2>Settings</h2>
+          <div class="setting-group">
+            <h3>Hardware & Haptics</h3>
+            <p class="muted">All hardware is off by default. Nothing is required.</p>
+            <label class="toggle">
+              <input type="checkbox" id="set-haptics" />
+              <span>Enable teledildonics / haptic devices</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="set-suit" />
+              <span>Enable haptic suit</span>
+            </label>
+            <button id="btn-disable-all-hw" class="btn btn-ghost">Disable all hardware</button>
+          </div>
+          <div class="setting-group">
+            <h3>Experience</h3>
+            <label class="toggle">
+              <input type="checkbox" id="set-3d" />
+              <span>Prefer 3D spatial mode when available</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="set-nsfw" checked />
+              <span>Allow adult content</span>
+            </label>
+          </div>
+          <div class="setting-group">
+            <h3>Data</h3>
+            <button id="btn-export" class="btn btn-secondary">Export my data</button>
+            <button id="btn-clear" class="btn btn-ghost">Clear all local data</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
