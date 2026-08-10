@@ -5,6 +5,8 @@
   // Leave empty to use local replies (works offline right now)
   const API_BASE = "";
   const CHAT_TIMEOUT_MS = 15000;
+  // Scene/loop video generation is minutes-slow, not seconds — a much longer budget than chat.
+  const SCENE_TIMEOUT_MS = 10 * 60 * 1000;
 
   const PRESETS = [
     { id: "luna", name: "Luna", style: "realistic", personality: "playful", age: 23, tag: "Playful", live: true },
@@ -68,6 +70,85 @@
 
   function uid() {
     return "c_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function avatarHtml(c) {
+    if (c.scene) {
+      return '<video class="avatar" src="' + c.scene + '" autoplay loop muted playsinline></video>';
+    }
+    if (c.portrait) {
+      return '<img class="avatar" src="' + c.portrait + '" alt="" />';
+    }
+    var initial = c.name ? c.name.charAt(0).toUpperCase() : "?";
+    return '<span class="avatar avatar-fallback">' + initial + "</span>";
+  }
+
+  // Calls the live HDV gateway's companion portrait endpoint. No-ops (leaves the fallback
+  // initial avatar in place) on any network error, timeout, or non-OK response.
+  function maybeFetchPortrait(c) {
+    if (!API_BASE || c.portrait || c.portraitPending) return;
+    c.portraitPending = true;
+    var controller = ("AbortController" in window) ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, CHAT_TIMEOUT_MS) : null;
+
+    fetch(API_BASE + "/v1/companion/portrait", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        persona: { name: c.name, age: c.age, style: c.style, personality: c.personality, backstory: c.backstory }
+      }),
+      signal: controller ? controller.signal : undefined
+    }).then(function (res) {
+      if (timer) clearTimeout(timer);
+      if (!res.ok) throw new Error("gateway error " + res.status);
+      return res.json();
+    }).then(function (data) {
+      c.portraitPending = false;
+      if (!data || typeof data.image !== "string" || !data.image) return;
+      c.portrait = data.image;
+      save();
+      if (state.activeId === c.id) openChat(c.id); else renderChatList();
+      maybeFetchScene(c);
+    }).catch(function () {
+      if (timer) clearTimeout(timer);
+      c.portraitPending = false;
+    });
+  }
+
+  // Calls the live HDV gateway's companion scene endpoint to animate an existing portrait
+  // into a short looping video ("make the companion feel alive"). Only runs once a portrait
+  // exists (it's the seed image). Video generation is slow (minutes, not seconds) and most
+  // deployments won't have a video provider configured yet, so this is a best-effort
+  // background upgrade: on any error, timeout, or "unavailable" response, the portrait image
+  // avatar stays exactly as it was — nothing ever breaks or blocks waiting on this.
+  function maybeFetchScene(c) {
+    if (!API_BASE || !c.portrait || c.scene || c.scenePending) return;
+    c.scenePending = true;
+    var controller = ("AbortController" in window) ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, SCENE_TIMEOUT_MS) : null;
+
+    fetch(API_BASE + "/v1/companion/scene", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        persona: { name: c.name, age: c.age, personality: c.personality, backstory: c.backstory },
+        seedImage: c.portrait
+      }),
+      signal: controller ? controller.signal : undefined
+    }).then(function (res) {
+      if (timer) clearTimeout(timer);
+      if (!res.ok) throw new Error("gateway error " + res.status);
+      return res.json();
+    }).then(function (data) {
+      c.scenePending = false;
+      if (!data || typeof data.video !== "string" || !data.video) return;
+      c.scene = data.video;
+      save();
+      if (state.activeId === c.id) openChat(c.id); else renderChatList();
+    }).catch(function () {
+      if (timer) clearTimeout(timer);
+      c.scenePending = false;
+    });
   }
 
   function initAgeGate() {
@@ -139,6 +220,7 @@
           state.companions.unshift(existing);
           save();
         }
+        maybeFetchPortrait(existing);
         state.activeId = existing.id;
         showView("chat");
         renderChatList();
@@ -177,6 +259,7 @@
       state.companions.unshift(companion);
       state.activeId = companion.id;
       save();
+      maybeFetchPortrait(companion);
       $("#create-form").reset();
       showView("chat");
       renderChatList();
@@ -191,7 +274,8 @@
       return;
     }
     list.innerHTML = state.companions.map(function (c) {
-      return '<div class="chat-item ' + (c.id === state.activeId ? "active" : "") + '" data-id="' + c.id + '">' + c.name + '</div>';
+      return '<div class="chat-item ' + (c.id === state.activeId ? "active" : "") + '" data-id="' + c.id + '">' +
+        avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span></div>";
     }).join("");
     list.querySelectorAll(".chat-item").forEach(function (item) {
       item.onclick = function () { openChat(item.dataset.id); };
@@ -203,7 +287,7 @@
     if (!c) return;
     state.activeId = id;
     renderChatList();
-    $("#chat-header").textContent = c.name;
+    $("#chat-header").innerHTML = avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span>";
     var box = $("#chat-messages");
     box.innerHTML = (c.messages || []).map(function (m) {
       return '<div class="msg ' + (m.role === "user" ? "user" : "bot") + '">' + escapeHtml(m.text) + '</div>';
