@@ -52,6 +52,39 @@
     mysterious: ["Interesting…", "There's more to that, isn't there?", "I don't give everything away so easily.", "Ask the right question.", "You'll figure me out eventually."]
   };
 
+  // Deterministic per-persona fallback gradient for gallery cards without real generated art
+  // yet, so an empty gallery reads as an intentional premium design choice instead of a
+  // broken/blank state. This is ONLY the layer underneath `.card-thumb` -- once a persona's
+  // real thumbnail actually loads, __flCardArtLoaded's "has-art" class + the image itself
+  // fully cover it, unchanged from before. Every stop below is this site's own --pink /
+  // --pink-hot / --bg / --bg2 / --card token values (see :root in styles.css) at a few
+  // different angles/opacities -- not an invented, unrelated palette.
+  var CARD_FALLBACK_GRADIENTS = [
+    "linear-gradient(145deg, rgba(255,77,141,0.32), #1a1a1f)",
+    "linear-gradient(200deg, rgba(255,45,111,0.38), #0a0a0c)",
+    "linear-gradient(120deg, #121216, rgba(255,77,141,0.28))",
+    "linear-gradient(165deg, rgba(255,77,141,0.16), #1a1a1f)",
+    "linear-gradient(210deg, #0a0a0c, rgba(255,45,111,0.34))",
+    "linear-gradient(100deg, rgba(255,77,141,0.4), #121216)",
+    "linear-gradient(175deg, #1a1a1f, rgba(255,45,111,0.3))",
+    "linear-gradient(135deg, rgba(255,77,141,0.15), #0a0a0c)"
+  ];
+
+  // Simple deterministic string hash (djb2-ish) -- same persona id always picks the same
+  // gradient, but different ids spread fairly evenly across the palette above.
+  function hashStr(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) {
+      h = (h * 31 + s.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  }
+
+  function cardFallbackGradient(p) {
+    var key = (p && (p.id || p.name)) || "";
+    return CARD_FALLBACK_GRADIENTS[hashStr(key) % CARD_FALLBACK_GRADIENTS.length];
+  }
+
   function defaultSettings() {
     return {
       haptics: false, suit: false, prefer3d: false, nsfw: true, voice: false,
@@ -102,6 +135,10 @@
 
   function uid() {
     return "c_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function activeCompanion() {
+    return state.companions.filter(function (x) { return x.id === state.activeId; })[0];
   }
 
   // Global on purpose: inline HTML event-handler attributes (onerror="...") run in the global
@@ -290,8 +327,9 @@
 
     grid.innerHTML = list.map(function (p) {
       var thumbSrc = PRESET_ASSET_BASE + "/" + p.id + "/default.png";
+      var fallbackGradient = cardFallbackGradient(p);
       return '<div class="card" data-preset="' + p.id + '">' +
-        '<div class="img">' +
+        '<div class="img" style="background: ' + fallbackGradient + '">' +
         '<img class="card-thumb" src="' + thumbSrc + '" alt=""' +
         " onload='window.__flCardArtLoaded(this)' onerror=\"this.style.display='none'\" />" +
         '<span class="badge badge-live">LIVE</span>' +
@@ -315,6 +353,7 @@
             backstory: preset.backstory,
             age: preset.age,
             adult: true,
+            favorite: false,
             messages: [{ role: "bot", text: "Hey… I'm " + preset.name + ". I've been waiting for someone interesting." }]
           };
           state.companions.unshift(existing);
@@ -364,6 +403,7 @@
         voice: $("#c-voice").value,
         backstory: $("#c-backstory").value.trim(),
         adult: $("#c-adult").checked,
+        favorite: false,
         messages: [{ role: "bot", text: "Hi, I'm " + name + ". I just came to life for you… what do you want to talk about?" }]
       };
       state.companions.unshift(companion);
@@ -377,15 +417,25 @@
     };
   }
 
+  // Favorites are per-companion-instance (state.companions), not per-PRESETS-template, since a
+  // preset only becomes a real companion instance once someone clicks into chat with it (see
+  // the preset click handler in renderGallery). The chat list -- not the gallery grid -- is
+  // the natural place to surface/pin them: it's the view that already lists real instances,
+  // while the gallery grid renders PRESETS templates that don't carry a `favorite` flag at all.
   function renderChatList() {
     var list = $("#chat-list");
     if (!state.companions.length) {
       list.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;padding:0.5rem 0">No companions yet. Create one or pick from the gallery.</p>';
       return;
     }
-    list.innerHTML = state.companions.map(function (c) {
+    // Stable sort: favorites first, otherwise original (most-recently-created-first) order.
+    var sorted = state.companions.slice().sort(function (a, b) {
+      return (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0);
+    });
+    list.innerHTML = sorted.map(function (c) {
+      var star = c.favorite ? '<span class="fav-star" title="Favorite">&#9733;</span>' : "";
       return '<div class="chat-item ' + (c.id === state.activeId ? "active" : "") + '" data-id="' + c.id + '">' +
-        avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span></div>";
+        avatarHtml(c) + '<span class="chat-item-name">' + star + escapeHtml(c.name) + "</span></div>";
     }).join("");
     list.querySelectorAll(".chat-item").forEach(function (item) {
       item.onclick = function () { openChat(item.dataset.id); };
@@ -399,8 +449,17 @@
     renderChatList();
     $("#chat-header-info").innerHTML = avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span>";
     var box = $("#chat-messages");
-    box.innerHTML = (c.messages || []).map(function (m) {
+    box.innerHTML = (c.messages || []).map(function (m, idx) {
       var html = '<div class="msg ' + (m.role === "user" ? "user" : "bot") + '">' + escapeHtml(m.text) + '</div>';
+      // Edit is offered on every user message; regenerate only where there's actually a prior
+      // user turn to re-derive a reply from (i.e. never on the opening bot greeting at idx 0).
+      if (m.role === "user") {
+        html += '<div class="msg-actions user" data-idx="' + idx + '">' +
+          '<button type="button" class="msg-btn btn-edit" title="Edit message">&#9998; edit</button></div>';
+      } else if (idx > 0) {
+        html += '<div class="msg-actions bot" data-idx="' + idx + '">' +
+          '<button type="button" class="msg-btn btn-regen" title="Regenerate reply">&#8635; regenerate</button></div>';
+      }
       if (state.settings.devMode && m.role === "bot" && m.source) {
         var label = m.source === "llm" ? ("llm: " + (m.model || "?")) : (m.source + (m.error ? " — " + m.error : ""));
         html += '<div class="debug-caption">' + escapeHtml(label) + '</div>';
@@ -415,6 +474,9 @@
     input.focus();
     $("#btn-call").disabled = false;
     $("#btn-mic").disabled = !hasSTT;
+    $("#btn-export-companion").disabled = false;
+    $("#btn-favorite").disabled = false;
+    updateFavoriteButton(c);
   }
 
   function escapeHtml(s) {
@@ -541,7 +603,108 @@
     cap.className = "debug-caption";
     var label = result.source === "llm" ? ("llm: " + (result.model || "?")) : (result.source + (result.error ? " — " + result.error : ""));
     cap.textContent = label;
-    msgEl.parentElement && msgEl.parentElement.insertBefore(cap, msgEl.nextSibling);
+    // If a .msg-actions row (regenerate/edit) already sits right after the bubble, land the
+    // caption after that instead of between them, so DOM order always reads bubble -> actions
+    // -> caption regardless of which helper ran first (matches openChat's full re-render order).
+    var ref = msgEl.nextSibling;
+    if (ref && ref.classList && ref.classList.contains("msg-actions")) ref = ref.nextSibling;
+    msgEl.parentElement && msgEl.parentElement.insertBefore(cap, ref);
+  }
+
+  // Inserts a small "regenerate"/"edit" action row right after a message bubble element,
+  // mirroring the markup openChat()'s full re-render already produces for each message. Used
+  // when a bot reply is appended live (typed out) instead of going through a full re-render.
+  function appendMessageActionsAfter(afterEl, role, idx) {
+    var el = document.createElement("div");
+    el.className = "msg-actions " + role;
+    el.dataset.idx = String(idx);
+    el.innerHTML = role === "bot"
+      ? '<button type="button" class="msg-btn btn-regen" title="Regenerate reply">&#8635; regenerate</button>'
+      : '<button type="button" class="msg-btn btn-edit" title="Edit message">&#9998; edit</button>';
+    afterEl.parentElement && afterEl.parentElement.insertBefore(el, afterEl.nextSibling);
+    return el;
+  }
+
+  // Re-derives a fresh reply for the SAME preceding user message and replaces this bot
+  // bubble's content in place (progressive reveal via typeOutText), updating c.messages[idx]
+  // and persisting -- it does not touch any other message or re-open/scroll the whole chat.
+  function regenerateMessage(container) {
+    var idx = Number(container.dataset.idx);
+    var c = activeCompanion();
+    if (!c || !c.messages || isNaN(idx)) return;
+    var msgs = c.messages;
+    var target = msgs[idx];
+    if (!target || target.role !== "bot") return;
+    var userText = null;
+    for (var i = idx - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") { userText = msgs[i].text; break; }
+    }
+    if (userText == null) return;
+
+    var bubbleEl = container.previousElementSibling;
+    if (!bubbleEl || !bubbleEl.classList.contains("msg")) return;
+    var btn = container.querySelector(".btn-regen");
+    if (btn) btn.disabled = true;
+
+    // Drop any stale debug caption for the old reply (it sits right after this actions row);
+    // a fresh one (if any) gets appended once the new reply finishes typing out.
+    var staleCap = container.nextElementSibling;
+    if (staleCap && staleCap.classList.contains("debug-caption")) staleCap.remove();
+
+    bubbleEl.classList.add("typing-indicator");
+    bubbleEl.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+
+    var respond = apiBase() ? fetchCompanionReply(c, userText) : Promise.resolve(offlineReply(c));
+    respond.then(function (result) {
+      logDebug(result);
+      msgs[idx] = { role: "bot", text: result.text, source: result.source, model: result.model, error: result.error };
+      save();
+      if (btn) btn.disabled = false;
+      if (state.activeId !== c.id) return;
+      bubbleEl.classList.remove("typing-indicator");
+      bubbleEl.textContent = "";
+      typeOutText(bubbleEl, result.text, function () {
+        appendDebugCaption(bubbleEl, result);
+        if (state.settings.voice) speakText(result.text);
+      });
+    });
+  }
+
+  // Loads a user message's text back into the composer and truncates c.messages to drop that
+  // message and everything after it, so re-sending doesn't duplicate history.
+  function editMessageFromContainer(container) {
+    var idx = Number(container.dataset.idx);
+    var c = activeCompanion();
+    if (!c || !c.messages || isNaN(idx)) return;
+    var target = c.messages[idx];
+    if (!target || target.role !== "user") return;
+    c.messages = c.messages.slice(0, idx);
+    save();
+    openChat(c.id);
+    var input = $("#chat-text");
+    input.value = target.text;
+    input.focus();
+    var len = input.value.length;
+    try { input.setSelectionRange(len, len); } catch (e) {}
+  }
+
+  // Single delegated listener covers both full re-renders (openChat) and buttons appended
+  // live after a typed-out reply (appendMessageActionsAfter) -- no per-button rewiring needed.
+  function initMessageActions() {
+    $("#chat-messages").addEventListener("click", function (e) {
+      var regenBtn = e.target.closest(".btn-regen");
+      if (regenBtn) {
+        if (regenBtn.disabled) return;
+        var container = regenBtn.closest(".msg-actions");
+        if (container) regenerateMessage(container);
+        return;
+      }
+      var editBtn = e.target.closest(".btn-edit");
+      if (editBtn) {
+        var container2 = editBtn.closest(".msg-actions");
+        if (container2) editMessageFromContainer(container2);
+      }
+    });
   }
 
   // Calls the live HDV gateway's companion chat endpoint. Falls back to a local canned
@@ -715,6 +878,7 @@
         var el = appendMessageEl("bot", "");
         typeOutText(el, result.text, function () {
           appendDebugCaption(el, result);
+          appendMessageActionsAfter(el, "bot", c.messages.length - 1);
           if (state.settings.voice) speakText(result.text);
         });
       });
@@ -792,6 +956,145 @@
     };
   }
 
+  // --- Favorites --------------------------------------------------------------------------
+  // Favoriting lives on the companion INSTANCE (state.companions), never on a PRESETS
+  // template -- a preset has no `favorite` flag until someone actually starts chatting with
+  // it (see the gallery card click handler, which is the only place presets turn into real
+  // companion objects). The toggle lives in the chat header (next to call/export); the chat
+  // list is where favorites actually surface, pinned to the top with a small star indicator
+  // (see renderChatList) -- that fit this app's existing gallery-vs-chat-list split better
+  // than a gallery filter chip would have, since the gallery only ever renders PRESETS.
+
+  function updateFavoriteButton(c) {
+    var btn = $("#btn-favorite");
+    if (!btn) return;
+    var fav = !!(c && c.favorite);
+    btn.classList.toggle("is-fav", fav);
+    btn.innerHTML = fav ? "&#9733;" : "&#9734;";
+    btn.title = fav ? "Remove from favorites" : "Add to favorites";
+  }
+
+  function initFavorite() {
+    $("#btn-favorite").onclick = function () {
+      var c = activeCompanion();
+      if (!c) return;
+      c.favorite = !c.favorite;
+      save();
+      updateFavoriteButton(c);
+      renderChatList();
+    };
+  }
+
+  // --- Character card export/import ---------------------------------------------------
+  // This is FuckLike's own tiny companion-card JSON format -- NOT verified or claimed to be
+  // compatible with any third-party "character card" spec (Character.AI, SillyTavern/Tavern
+  // PNG cards, etc). formatVersion exists so a future shape change can detect old exports.
+  // intensity/adherence are currently global dials (state.settings), not per-companion, so
+  // export snapshots whatever they're set to at export time -- the closest per-card analog
+  // this app's data model has today.
+
+  function companionToCard(c) {
+    var card = { formatVersion: 1, name: c.name };
+    if (c.personality) card.personality = c.personality;
+    if (c.backstory) card.backstory = c.backstory;
+    if (c.appearance) card.appearance = c.appearance;
+    if (c.age != null) card.age = c.age;
+    if (c.style) card.style = c.style;
+    if (typeof state.settings.intensity === "number") card.intensity = state.settings.intensity;
+    if (typeof state.settings.adherence === "number") card.adherence = state.settings.adherence;
+    return card;
+  }
+
+  function initExportCompanion() {
+    $("#btn-export-companion").onclick = function () {
+      var c = activeCompanion();
+      if (!c) return;
+      var card = companionToCard(c);
+      var blob = new Blob([JSON.stringify(card, null, 2)], { type: "application/json" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      var slug = (c.name || "companion").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "companion";
+      a.download = slug + "-card.json";
+      a.click();
+    };
+  }
+
+  var CREATE_PERSONALITIES = ["playful", "romantic", "bratty", "dominant", "soft", "mysterious"];
+
+  // Parses (leniently but safely) a pasted/uploaded companion-card blob. Never throws past
+  // this function's caller -- malformed JSON or a missing required field surfaces as a
+  // thrown Error with a clear message, which callers turn into an inline error, never an
+  // uncaught exception or a write into `state`.
+  function parseCompanionCard(raw) {
+    var data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      throw new Error("That's not valid JSON.");
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("Card must be a JSON object.");
+    }
+    if (!data.name || typeof data.name !== "string" || !data.name.trim()) {
+      throw new Error('Card is missing a required "name" field.');
+    }
+    return data;
+  }
+
+  // Prefills the Create form so the user can review/edit before submitting -- importing a
+  // card never creates a companion or touches `state` directly.
+  function fillCreateFormFromCard(card) {
+    $("#c-name").value = String(card.name).slice(0, 24);
+    if (card.style === "realistic" || card.style === "anime") $("#c-style").value = card.style;
+    if (CREATE_PERSONALITIES.indexOf(card.personality) !== -1) $("#c-personality").value = card.personality;
+    if (card.age != null) {
+      var ageStr = String(Number(card.age));
+      var ageSelect = $("#c-age");
+      var hasOption = [].slice.call(ageSelect.options).some(function (o) { return o.value === ageStr; });
+      if (hasOption) ageSelect.value = ageStr;
+    }
+    if (typeof card.backstory === "string") $("#c-backstory").value = card.backstory.slice(0, 4000);
+  }
+
+  function initImportCard() {
+    var errEl = $("#c-import-error");
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.classList.remove("hidden");
+    }
+    function clearError() {
+      errEl.classList.add("hidden");
+      errEl.textContent = "";
+    }
+    $("#c-import-btn").onclick = function () {
+      clearError();
+      var raw = $("#c-import-text").value.trim();
+      if (!raw) { showError("Paste a card JSON above, or choose a file below, first."); return; }
+      try {
+        fillCreateFormFromCard(parseCompanionCard(raw));
+      } catch (err) {
+        showError(err.message || "Could not import that card.");
+      }
+    };
+    $("#c-import-file").onchange = function (e) {
+      clearError();
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var text = String(reader.result || "");
+        try {
+          fillCreateFormFromCard(parseCompanionCard(text));
+          $("#c-import-text").value = text;
+        } catch (err) {
+          showError(err.message || "Could not import that card.");
+        }
+      };
+      reader.onerror = function () { showError("Could not read that file."); };
+      reader.readAsText(file);
+    };
+  }
+
   var INTENSITY_DESC = {
     1: "sweet & PG", 2: "warm & romantic", 3: "flirty, moderate spice",
     4: "explicit / raunchy", 5: "maximally explicit"
@@ -860,6 +1163,9 @@
       $("#chat-text").disabled = true;
       $("#btn-call").disabled = true;
       $("#btn-mic").disabled = true;
+      $("#btn-export-companion").disabled = true;
+      $("#btn-favorite").disabled = true;
+      updateFavoriteButton(null);
     };
   }
 
@@ -868,9 +1174,13 @@
   initNav();
   initFilters();
   initCreate();
+  initImportCard();
   initChat();
+  initMessageActions();
   initMic();
   initCall();
+  initFavorite();
+  initExportCompanion();
   initStore();
   initSettings();
   if (state.ageOk) showView("home");
