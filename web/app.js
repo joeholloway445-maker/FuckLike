@@ -38,7 +38,7 @@
     companions: [],
     activeId: null,
     filter: "all",
-    settings: { haptics: false, suit: false, prefer3d: false, nsfw: true }
+    settings: { haptics: false, suit: false, prefer3d: false, nsfw: true, voice: false }
   };
 
   function load() {
@@ -318,17 +318,19 @@
     if (!c) return;
     state.activeId = id;
     renderChatList();
-    $("#chat-header").innerHTML = avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span>";
+    $("#chat-header-info").innerHTML = avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span>";
     var box = $("#chat-messages");
     box.innerHTML = (c.messages || []).map(function (m) {
       return '<div class="msg ' + (m.role === "user" ? "user" : "bot") + '">' + escapeHtml(m.text) + '</div>';
     }).join("");
     box.scrollTop = box.scrollHeight;
     var input = $("#chat-text");
-    var btn = $("#chat-form button");
+    var btn = $("#chat-form button[type='submit']");
     input.disabled = false;
     btn.disabled = false;
     input.focus();
+    $("#btn-call").disabled = false;
+    $("#btn-mic").disabled = !hasSTT;
   }
 
   function escapeHtml(s) {
@@ -353,7 +355,7 @@
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        persona: { name: c.name, personality: c.personality, backstory: c.backstory },
+        persona: { name: c.name, age: c.age, personality: c.personality, backstory: c.backstory },
         history: history,
         message: text
       }),
@@ -370,6 +372,110 @@
     });
   }
 
+  // --- "Typing…" indicator + progressive reveal -----------------------------------------
+  // No real token streaming (the gateway returns one buffered JSON reply, not SSE — see
+  // deploy notes), so this simulates the live-typing feel client-side: an animated
+  // typing-dots bubble while the request is in flight, then the finished reply is revealed
+  // character-by-character instead of appearing as one instant block.
+
+  function appendMessageEl(role, text) {
+    var box = $("#chat-messages");
+    var el = document.createElement("div");
+    el.className = "msg " + (role === "user" ? "user" : "bot");
+    el.textContent = text;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    return el;
+  }
+
+  function showTypingIndicator() {
+    hideTypingIndicator();
+    var box = $("#chat-messages");
+    var el = document.createElement("div");
+    el.className = "msg bot typing-indicator";
+    el.id = "typing-indicator";
+    el.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function hideTypingIndicator() {
+    var el = document.getElementById("typing-indicator");
+    if (el) el.remove();
+  }
+
+  function typeOutText(el, text, onDone) {
+    var box = $("#chat-messages");
+    var i = 0;
+    var charsPerTick = text.length > 220 ? 4 : text.length > 90 ? 2 : 1;
+    (function tick() {
+      i += charsPerTick;
+      el.textContent = text.slice(0, i);
+      box.scrollTop = box.scrollHeight;
+      if (i < text.length) {
+        setTimeout(tick, 18);
+      } else {
+        el.textContent = text;
+        if (onDone) onDone();
+      }
+    })();
+  }
+
+  // --- Voice: text-to-speech (bot replies) and speech-to-text (mic input) ----------------
+  // Both use the browser's built-in Web Speech APIs — no audio ever leaves the device to a
+  // third-party voice service. Support varies badly by browser (notably: no STT on iOS
+  // Safari), so every entry point is feature-detected and hidden/disabled rather than
+  // shown-but-broken.
+
+  var hasTTS = "speechSynthesis" in window;
+  var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var hasSTT = !!SpeechRecognitionCtor;
+
+  function stopSpeaking() {
+    if (hasTTS) window.speechSynthesis.cancel();
+  }
+
+  function speakText(text, onEnd) {
+    if (!hasTTS || !text) { if (onEnd) onEnd(); return; }
+    stopSpeaking();
+    var utter = new SpeechSynthesisUtterance(text);
+    utter.onend = onEnd || null;
+    utter.onerror = onEnd || null;
+    window.speechSynthesis.speak(utter);
+  }
+
+  function createRecognizer() {
+    if (!hasSTT) return null;
+    var rec = new SpeechRecognitionCtor();
+    rec.lang = navigator.language || "en-US";
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    return rec;
+  }
+
+  function initMic() {
+    var btn = $("#btn-mic");
+    if (!hasSTT) { btn.style.display = "none"; return; }
+    var listening = false;
+    btn.onclick = function () {
+      if (listening) return;
+      var rec = createRecognizer();
+      if (!rec) return;
+      listening = true;
+      btn.classList.add("listening");
+      rec.onresult = function (e) {
+        var transcript = e.results[0][0].transcript;
+        var input = $("#chat-text");
+        input.value = (input.value ? input.value + " " : "") + transcript;
+        input.focus();
+      };
+      rec.onend = function () { listening = false; btn.classList.remove("listening"); };
+      rec.onerror = function () { listening = false; btn.classList.remove("listening"); };
+      rec.start();
+    };
+  }
+
   function initChat() {
     $("#chat-form").onsubmit = function (e) {
       e.preventDefault();
@@ -384,12 +490,90 @@
       save();
       openChat(c.id);
 
+      var activeAtSend = state.activeId;
+      if (activeAtSend === c.id) showTypingIndicator();
+
       var respond = API_BASE ? fetchCompanionReply(c, text) : Promise.resolve(localReply(c.personality));
       respond.then(function (reply) {
         c.messages.push({ role: "bot", text: reply });
         save();
-        if (state.activeId === c.id) openChat(c.id);
+        if (state.activeId !== c.id) return;
+        hideTypingIndicator();
+        var el = appendMessageEl("bot", "");
+        typeOutText(el, reply, function () {
+          if (state.settings.voice) speakText(reply);
+        });
       });
+    };
+  }
+
+  // --- Live call: push-to-talk voice loop (STT -> chat -> TTS) in a call-style overlay ---
+
+  function initCall() {
+    var overlay = $("#call-overlay");
+    var micBtn = $("#btn-call-mic");
+    var status = $("#call-status");
+    var recognizing = false;
+
+    function endCall() {
+      stopSpeaking();
+      if (hasSTT) { try { recognizerInFlight && recognizerInFlight.abort(); } catch (e) {} }
+      recognizing = false;
+      micBtn.classList.remove("listening", "speaking");
+      overlay.classList.add("hidden");
+    }
+
+    var recognizerInFlight = null;
+
+    function takeTurn() {
+      var c = state.companions.filter(function (x) { return x.id === state.activeId; })[0];
+      if (!c) return endCall();
+      if (!hasSTT) { status.textContent = "Voice input isn't supported in this browser."; return; }
+      var rec = createRecognizer();
+      recognizerInFlight = rec;
+      recognizing = true;
+      micBtn.classList.add("listening");
+      status.textContent = "Listening…";
+      rec.onresult = function (e) {
+        var transcript = e.results[0][0].transcript;
+        micBtn.classList.remove("listening");
+        status.textContent = c.name + " is thinking…";
+        c.messages = c.messages || [];
+        c.messages.push({ role: "user", text: transcript });
+        save();
+        if (state.activeId === c.id) openChat(c.id);
+
+        var respond = API_BASE ? fetchCompanionReply(c, transcript) : Promise.resolve(localReply(c.personality));
+        respond.then(function (reply) {
+          c.messages.push({ role: "bot", text: reply });
+          save();
+          if (state.activeId === c.id) openChat(c.id);
+          if (overlay.classList.contains("hidden")) return;
+          status.textContent = c.name + " is speaking…";
+          micBtn.classList.add("speaking");
+          speakText(reply, function () {
+            micBtn.classList.remove("speaking");
+            if (!overlay.classList.contains("hidden")) status.textContent = "Tap to talk";
+          });
+        });
+      };
+      rec.onerror = function () { recognizing = false; micBtn.classList.remove("listening"); status.textContent = "Tap to talk"; };
+      rec.onend = function () { recognizing = false; micBtn.classList.remove("listening"); };
+      rec.start();
+    }
+
+    $("#btn-call").onclick = function () {
+      var c = state.companions.filter(function (x) { return x.id === state.activeId; })[0];
+      if (!c) return;
+      $("#call-avatar").innerHTML = avatarHtml(c);
+      $("#call-name").textContent = c.name;
+      status.textContent = hasSTT ? "Tap to talk" : "Voice input isn't supported in this browser.";
+      overlay.classList.remove("hidden");
+    };
+    $("#btn-call-end").onclick = endCall;
+    micBtn.onclick = function () {
+      if (recognizing) return;
+      takeTurn();
     };
   }
 
@@ -398,6 +582,8 @@
     $("#set-suit").checked = !!state.settings.suit;
     $("#set-3d").checked = !!state.settings.prefer3d;
     $("#set-nsfw").checked = !!state.settings.nsfw;
+    $("#set-voice").checked = !!state.settings.voice;
+    $("#set-voice").disabled = !hasTTS;
   }
 
   function initSettings() {
@@ -405,6 +591,7 @@
     $("#set-suit").onchange = function (e) { state.settings.suit = e.target.checked; save(); };
     $("#set-3d").onchange = function (e) { state.settings.prefer3d = e.target.checked; save(); };
     $("#set-nsfw").onchange = function (e) { state.settings.nsfw = e.target.checked; save(); };
+    $("#set-voice").onchange = function (e) { state.settings.voice = e.target.checked; if (!e.target.checked) stopSpeaking(); save(); };
     $("#btn-disable-all-hw").onclick = function () {
       state.settings.haptics = false;
       state.settings.suit = false;
@@ -426,9 +613,11 @@
       save();
       renderChatList();
       renderSettings();
-      $("#chat-header").textContent = "Select a companion";
+      $("#chat-header-info").textContent = "Select a companion";
       $("#chat-messages").innerHTML = "";
       $("#chat-text").disabled = true;
+      $("#btn-call").disabled = true;
+      $("#btn-mic").disabled = true;
     };
   }
 
@@ -438,6 +627,8 @@
   initFilters();
   initCreate();
   initChat();
+  initMic();
+  initCall();
   initSettings();
   if (state.ageOk) showView("home");
 })();

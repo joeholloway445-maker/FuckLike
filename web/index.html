@@ -121,15 +121,29 @@
             <button class="btn btn-secondary full" data-view="create">+ New companion</button>
           </aside>
           <div class="chat-main">
-            <div id="chat-header" class="chat-header">Select a companion</div>
+            <div id="chat-header" class="chat-header">
+              <span id="chat-header-info">Select a companion</span>
+              <button type="button" id="btn-call" class="btn btn-ghost btn-call" disabled title="Voice call">&#128222;</button>
+            </div>
             <div id="chat-messages" class="chat-messages"></div>
             <form id="chat-form" class="chat-input">
+              <button type="button" id="btn-mic" class="btn btn-ghost btn-mic" disabled title="Voice input">&#127908;</button>
               <input type="text" id="chat-text" placeholder="Say something..." autocomplete="off" disabled />
               <button type="submit" class="btn btn-primary" disabled>Send</button>
             </form>
           </div>
         </div>
       </section>
+
+      <div id="call-overlay" class="call-overlay hidden">
+        <div class="call-card">
+          <div id="call-avatar" class="call-avatar"></div>
+          <div id="call-name" class="call-name"></div>
+          <div id="call-status" class="call-status">Tap to talk</div>
+          <button type="button" id="btn-call-mic" class="call-mic-btn">&#127908;</button>
+          <button type="button" id="btn-call-end" class="btn btn-ghost call-end-btn">End call</button>
+        </div>
+      </div>
 
       <section id="view-settings" class="view hidden">
         <div class="settings-wrap">
@@ -156,6 +170,14 @@
             <label class="toggle">
               <input type="checkbox" id="set-nsfw" checked />
               <span>Allow adult content</span>
+            </label>
+          </div>
+          <div class="setting-group">
+            <h3>Voice</h3>
+            <p class="muted">Uses your browser's built-in text-to-speech / speech-to-text — nothing is uploaded to a voice service.</p>
+            <label class="toggle">
+              <input type="checkbox" id="set-voice" />
+              <span>Speak replies aloud (text-to-speech)</span>
             </label>
           </div>
           <div class="setting-group">
