@@ -30,6 +30,7 @@
           <button data-view="gallery" class="nav-btn">Companions</button>
           <button data-view="create" class="nav-btn">Create</button>
           <button data-view="chat" class="nav-btn">Chat</button>
+          <button data-view="store" class="nav-btn">Store</button>
           <button data-view="settings" class="nav-btn">Settings</button>
         </div>
       </nav>
@@ -49,13 +50,8 @@
       <section id="view-gallery" class="view hidden">
         <div class="section-head">
           <h2>Meet companions</h2>
-          <div class="filters" id="filters">
-            <button class="filter active" data-filter="all">All</button>
-            <button class="filter" data-filter="realistic">Realistic</button>
-            <button class="filter" data-filter="anime">Anime</button>
-            <button class="filter" data-filter="playful">Playful</button>
-            <button class="filter" data-filter="romantic">Romantic</button>
-          </div>
+          <input type="search" id="gallery-search" class="search-input" placeholder="Search by name, vibe, personality…" autocomplete="off" />
+          <div class="filters" id="filters"></div>
         </div>
         <div class="grid" id="gallery-grid"></div>
       </section>
@@ -145,19 +141,28 @@
         </div>
       </div>
 
+      <section id="view-store" class="view hidden">
+        <div class="store-wrap">
+          <h2>Store</h2>
+          <p class="muted">Test-mode checkout — no real card is charged yet (see Settings &gt; Developer for what's connected).</p>
+          <div id="store-balance" class="store-balance"></div>
+          <div id="store-plans" class="store-plans"></div>
+        </div>
+      </section>
+
       <section id="view-settings" class="view hidden">
         <div class="settings-wrap">
           <h2>Settings</h2>
           <div class="setting-group">
-            <h3>Hardware & Haptics</h3>
-            <p class="muted">All hardware is off by default. Nothing is required.</p>
+            <h3>Hardware</h3>
+            <p class="muted">All hardware is off by default. Nothing is required. These are two DIFFERENT devices:</p>
             <label class="toggle">
               <input type="checkbox" id="set-haptics" />
-              <span>Enable teledildonics / haptic devices</span>
+              <span>Bluetooth toy control (teledildonics)<br /><small class="muted">A connected handheld/wearable toy.</small></span>
             </label>
             <label class="toggle">
               <input type="checkbox" id="set-suit" />
-              <span>Enable haptic suit</span>
+              <span>Full-body haptic suit<br /><small class="muted">A separate whole-body feedback garment.</small></span>
             </label>
             <button id="btn-disable-all-hw" class="btn btn-ghost">Disable all hardware</button>
           </div>
@@ -173,12 +178,38 @@
             </label>
           </div>
           <div class="setting-group">
+            <h3>Content dials</h3>
+            <p class="muted">Applies to every companion's chat. Two independent knobs — how far it goes, and how closely it stays "in character."</p>
+            <label class="slider-label">
+              <span>Intensity: <b id="intensity-val">3</b>/5 — <span id="intensity-desc" class="muted"></span></span>
+              <input type="range" id="set-intensity" min="1" max="5" step="1" value="3" />
+            </label>
+            <label class="slider-label">
+              <span>Character adherence: <b id="adherence-val">3</b>/5 — <span id="adherence-desc" class="muted"></span></span>
+              <input type="range" id="set-adherence" min="1" max="5" step="1" value="3" />
+            </label>
+          </div>
+          <div class="setting-group">
             <h3>Voice</h3>
             <p class="muted">Uses your browser's built-in text-to-speech / speech-to-text — nothing is uploaded to a voice service.</p>
             <label class="toggle">
               <input type="checkbox" id="set-voice" />
               <span>Speak replies aloud (text-to-speech)</span>
             </label>
+          </div>
+          <div class="setting-group">
+            <h3>Developer</h3>
+            <p class="muted">Raw knobs, no guardrails. If you break it, it's on you — that's also the best way to test it.</p>
+            <label class="toggle">
+              <input type="checkbox" id="set-dev-mode" />
+              <span>Debug mode (show reply source/model/error inline + console)</span>
+            </label>
+            <label class="dev-field">
+              <span>Gateway base URL override</span>
+              <input type="text" id="set-api-base" placeholder="e.g. https://api.fucklike.ai (blank = offline/local replies)" autocomplete="off" spellcheck="false" />
+            </label>
+            <button id="btn-view-raw-state" class="btn btn-ghost">View raw state (JSON)</button>
+            <pre id="raw-state-view" class="raw-state hidden"></pre>
           </div>
           <div class="setting-group">
             <h3>Data</h3>
