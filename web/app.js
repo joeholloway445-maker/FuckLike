@@ -5,6 +5,8 @@
   // Leave empty to use local replies (works offline right now)
   const API_BASE = "";
   const CHAT_TIMEOUT_MS = 15000;
+  // Scene/loop video generation is minutes-slow, not seconds — a much longer budget than chat.
+  const SCENE_TIMEOUT_MS = 10 * 60 * 1000;
 
   const PRESETS = [
     { id: "luna", name: "Luna", style: "realistic", personality: "playful", age: 23, tag: "Playful", live: true },
@@ -71,6 +73,9 @@
   }
 
   function avatarHtml(c) {
+    if (c.scene) {
+      return '<video class="avatar" src="' + c.scene + '" autoplay loop muted playsinline></video>';
+    }
     if (c.portrait) {
       return '<img class="avatar" src="' + c.portrait + '" alt="" />';
     }
@@ -103,9 +108,46 @@
       c.portrait = data.image;
       save();
       if (state.activeId === c.id) openChat(c.id); else renderChatList();
+      maybeFetchScene(c);
     }).catch(function () {
       if (timer) clearTimeout(timer);
       c.portraitPending = false;
+    });
+  }
+
+  // Calls the live HDV gateway's companion scene endpoint to animate an existing portrait
+  // into a short looping video ("make the companion feel alive"). Only runs once a portrait
+  // exists (it's the seed image). Video generation is slow (minutes, not seconds) and most
+  // deployments won't have a video provider configured yet, so this is a best-effort
+  // background upgrade: on any error, timeout, or "unavailable" response, the portrait image
+  // avatar stays exactly as it was — nothing ever breaks or blocks waiting on this.
+  function maybeFetchScene(c) {
+    if (!API_BASE || !c.portrait || c.scene || c.scenePending) return;
+    c.scenePending = true;
+    var controller = ("AbortController" in window) ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, SCENE_TIMEOUT_MS) : null;
+
+    fetch(API_BASE + "/v1/companion/scene", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        persona: { name: c.name, age: c.age, personality: c.personality, backstory: c.backstory },
+        seedImage: c.portrait
+      }),
+      signal: controller ? controller.signal : undefined
+    }).then(function (res) {
+      if (timer) clearTimeout(timer);
+      if (!res.ok) throw new Error("gateway error " + res.status);
+      return res.json();
+    }).then(function (data) {
+      c.scenePending = false;
+      if (!data || typeof data.video !== "string" || !data.video) return;
+      c.scene = data.video;
+      save();
+      if (state.activeId === c.id) openChat(c.id); else renderChatList();
+    }).catch(function () {
+      if (timer) clearTimeout(timer);
+      c.scenePending = false;
     });
   }
 
