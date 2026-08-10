@@ -95,6 +95,11 @@ a { color: inherit; text-decoration: none; }
   padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.8rem;
 }
 .filter:hover, .filter.active { color: var(--ink); border-color: var(--pink); background: var(--pink-soft); }
+.search-input {
+  flex: 1 1 220px; min-width: 160px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0.5rem 1rem; outline: none; color: var(--ink);
+}
+.search-input:focus { border-color: var(--pink); }
 
 .grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem;
@@ -110,14 +115,21 @@ a { color: inherit; text-decoration: none; }
   position: relative; display: flex; align-items: flex-end;
 }
 .card .img::after {
-  content: ''; position: absolute; inset: 0;
+  content: ''; position: absolute; inset: 0; z-index: 1;
   background: linear-gradient(to top, rgba(0,0,0,0.75), transparent 55%);
+}
+.card-thumb {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;
 }
 .card .badge {
   position: absolute; top: 8px; left: 8px; z-index: 2;
   background: var(--pink); color: #fff; font-size: 0.65rem; font-weight: 700;
   padding: 0.15rem 0.4rem; border-radius: 4px;
 }
+/* Only shown once the real pre-generated thumbnail actually loads (see __flCardArtLoaded) —
+   no static "live" flag to go stale/lie about which personas have generated art yet. */
+.card .badge-live { display: none; }
+.card .img.has-art .badge-live { display: block; }
 .card .meta { position: absolute; bottom: 10px; left: 10px; right: 10px; z-index: 2; }
 .card .name { font-weight: 700; font-size: 0.95rem; }
 .card .tag { font-size: 0.75rem; color: rgba(255,255,255,0.7); }
@@ -190,6 +202,10 @@ a { color: inherit; text-decoration: none; }
 }
 .msg.user { align-self: flex-end; background: var(--pink); color: #fff; border-bottom-right-radius: 4px; }
 .msg.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.debug-caption {
+  align-self: flex-start; font-size: 0.7rem; color: var(--muted); font-family: monospace;
+  margin-top: -0.5rem; padding-left: 0.25rem;
+}
 .msg.typing-indicator { display: flex; align-items: center; gap: 4px; padding: 0.85rem 1.1rem; }
 .typing-dot {
   width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
@@ -238,6 +254,22 @@ a { color: inherit; text-decoration: none; }
 .call-mic-btn.speaking { background: var(--pink-hot); animation: pulse 0.6s ease-in-out infinite; }
 .call-end-btn { color: var(--muted); }
 
+.store-wrap { max-width: 720px; }
+.store-wrap h2 { margin-bottom: 0.5rem; }
+.store-balance {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 0.85rem 1.1rem; margin: 1rem 0; font-size: 0.9rem;
+}
+.store-plans {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem;
+}
+.plan-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 1.25rem 1rem; text-align: center;
+}
+.plan-tier { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
+.plan-price { color: var(--muted); font-size: 0.9rem; margin-bottom: 1rem; }
+
 .settings-wrap { max-width: 520px; }
 .settings-wrap h2 { margin-bottom: 1.5rem; }
 .setting-group {
@@ -249,8 +281,21 @@ a { color: inherit; text-decoration: none; }
 .toggle {
   display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.75rem; font-size: 0.95rem;
 }
-.toggle input { width: 18px; height: 18px; accent-color: var(--pink); }
+.toggle input { width: 18px; height: 18px; accent-color: var(--pink); flex-shrink: 0; }
 .setting-group .btn { margin-top: 0.5rem; margin-right: 0.5rem; }
+.slider-label { display: block; margin-bottom: 1rem; font-size: 0.9rem; }
+.slider-label input[type="range"] { width: 100%; accent-color: var(--pink); margin-top: 0.4rem; }
+.dev-field { display: block; margin: 0.75rem 0; font-size: 0.9rem; }
+.dev-field input {
+  display: block; width: 100%; margin-top: 0.35rem; background: var(--bg2);
+  border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.7rem; outline: none;
+}
+.dev-field input:focus { border-color: var(--pink); }
+.raw-state {
+  margin-top: 0.75rem; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.75rem; font-size: 0.75rem; overflow-x: auto; max-height: 240px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-word;
+}
 
 @media (max-width: 700px) {
   .chat-layout { grid-template-columns: 1fr; }
