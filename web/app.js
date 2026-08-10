@@ -7,9 +7,14 @@
   const CHAT_TIMEOUT_MS = 15000;
   // Scene/loop video generation is minutes-slow, not seconds — a much longer budget than chat.
   const SCENE_TIMEOUT_MS = 10 * 60 * 1000;
+  // Gallery presets use pre-generated static art (see HDV_Foundation/colab/09_batch_pregenerate.py)
+  // instead of live generation — no gateway/Colab tunnel needs to be running for these to show up.
+  // Served straight off this same origin by nginx; falls back gracefully (see avatarHtml) if a
+  // given persona/prompt combo hasn't been generated and uploaded yet.
+  const PRESET_ASSET_BASE = "/assets/personas";
 
   const PRESETS = [
-    { id: "luna", name: "Luna", style: "realistic", personality: "playful", age: 23, tag: "Playful", live: true },
+    { id: "jordyn", name: "Jordyn", style: "realistic", personality: "bratty", appearance: "gorgeous, thick, light brunette hair", backstory: "A devoted girlfriend/wife type who loves hard — but she's got a mean, teasing streak and isn't afraid to talk back.", age: 24, tag: "Girlfriend", live: true },
     { id: "isabella", name: "Isabella", style: "realistic", personality: "romantic", age: 25, tag: "Romantic", live: false },
     { id: "aria", name: "Aria", style: "anime", personality: "bratty", age: 21, tag: "Bratty", live: false, badge: "NEW" },
     { id: "sofia", name: "Sofia", style: "realistic", personality: "dominant", age: 27, tag: "Soft dom", live: false },
@@ -72,15 +77,37 @@
     return "c_" + Math.random().toString(36).slice(2, 10);
   }
 
+  // Global on purpose: inline HTML event-handler attributes (onerror="...") run in the global
+  // scope, so this small helper has to live on window to be reachable from markup built by
+  // avatarHtml() below. It only ever swaps a broken avatar element for the initial-letter
+  // fallback — never anything network- or data-bearing.
+  window.__flAvatarFallback = function (el, initial) {
+    el.outerHTML = '<span class="avatar avatar-fallback">' + initial + "</span>";
+  };
+
   function avatarHtml(c) {
+    var initial = c.name ? c.name.charAt(0).toUpperCase() : "?";
+    var initialJson = JSON.stringify(initial);
     if (c.scene) {
-      return '<video class="avatar" src="' + c.scene + '" autoplay loop muted playsinline></video>';
+      // If the pre-generated/generated clip 404s (not uploaded yet, generation still pending),
+      // fall straight to the initial letter — kept simple rather than chaining to c.portrait,
+      // since presets always have both assigned together anyway (see maybeUsePresetAssets).
+      return '<video class="avatar" src="' + c.scene + '" autoplay loop muted playsinline' +
+        " onerror='window.__flAvatarFallback(this," + initialJson + ")'></video>";
     }
     if (c.portrait) {
-      return '<img class="avatar" src="' + c.portrait + '" alt="" />';
+      return '<img class="avatar" src="' + c.portrait + '" alt=""' +
+        " onerror='window.__flAvatarFallback(this," + initialJson + ")' />";
     }
-    var initial = c.name ? c.name.charAt(0).toUpperCase() : "?";
     return '<span class="avatar avatar-fallback">' + initial + "</span>";
+  }
+
+  // Gallery presets use the pre-generated static asset library instead of live generation —
+  // no gateway/Colab tunnel required. Falls back to the initial-letter avatar via avatarHtml's
+  // onerror handling if the "default" persona/prompt combo hasn't been generated yet.
+  function usePresetAssets(c, presetId) {
+    c.portrait = PRESET_ASSET_BASE + "/" + presetId + "/default.png";
+    c.scene = PRESET_ASSET_BASE + "/" + presetId + "/default.mp4";
   }
 
   // Calls the live HDV gateway's companion portrait endpoint. No-ops (leaves the fallback
@@ -95,7 +122,7 @@
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        persona: { name: c.name, age: c.age, style: c.style, personality: c.personality, backstory: c.backstory }
+        persona: { name: c.name, age: c.age, style: c.style, personality: c.personality, appearance: c.appearance, backstory: c.backstory }
       }),
       signal: controller ? controller.signal : undefined
     }).then(function (res) {
@@ -131,7 +158,7 @@
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        persona: { name: c.name, age: c.age, personality: c.personality, backstory: c.backstory },
+        persona: { name: c.name, age: c.age, personality: c.personality, appearance: c.appearance, backstory: c.backstory },
         seedImage: c.portrait
       }),
       signal: controller ? controller.signal : undefined
@@ -213,6 +240,8 @@
             name: preset.name,
             style: preset.style,
             personality: preset.personality,
+            appearance: preset.appearance,
+            backstory: preset.backstory,
             age: preset.age,
             adult: true,
             messages: [{ role: "bot", text: "Hey… I'm " + preset.name + ". I've been waiting for someone interesting." }]
@@ -220,7 +249,9 @@
           state.companions.unshift(existing);
           save();
         }
-        maybeFetchPortrait(existing);
+        // Presets always point at the pre-generated static library (idempotent — also upgrades
+        // companions created before this asset library existed) rather than live generation.
+        usePresetAssets(existing, preset.id);
         state.activeId = existing.id;
         showView("chat");
         renderChatList();
