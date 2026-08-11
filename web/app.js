@@ -194,7 +194,12 @@
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        persona: { name: c.name, age: c.age, style: c.style, personality: c.personality, appearance: c.appearance, backstory: c.backstory }
+        // presetId (e.g. "jordyn") lets the gateway/portrait server layer that character's own
+        // trained LoRA on top of the style checkpoint, when one exists — see
+        // HDV_Foundation/colab/07_portrait_server.py's PERSONA_LORA_ROUTES. Custom/non-preset
+        // companions just omit it (c.presetId is undefined) and fall back to the plain
+        // per-style behavior, unchanged.
+        persona: { name: c.name, age: c.age, style: c.style, personality: c.personality, appearance: c.appearance, backstory: c.backstory, personaId: c.presetId }
       }),
       signal: controller ? controller.signal : undefined
     }).then(function (res) {
