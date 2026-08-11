@@ -106,6 +106,14 @@
             </label>
             <button type="submit" class="btn btn-primary full">Create companion</button>
           </form>
+          <div class="import-card">
+            <h3>Import a companion card</h3>
+            <p class="muted">Paste FuckLike companion-card JSON (or choose a file) to prefill the form above for review — nothing is created until you submit it.</p>
+            <input type="file" id="c-import-file" accept="application/json,.json" />
+            <textarea id="c-import-text" rows="3" placeholder='Paste card JSON here, e.g. {"formatVersion":1,"name":"..."}'></textarea>
+            <button type="button" id="c-import-btn" class="btn btn-secondary">Import into form</button>
+            <p id="c-import-error" class="import-error hidden"></p>
+          </div>
         </div>
       </section>
 
@@ -119,7 +127,11 @@
           <div class="chat-main">
             <div id="chat-header" class="chat-header">
               <span id="chat-header-info">Select a companion</span>
-              <button type="button" id="btn-call" class="btn btn-ghost btn-call" disabled title="Voice call">&#128222;</button>
+              <div class="chat-header-actions">
+                <button type="button" id="btn-favorite" class="btn btn-ghost btn-favorite" disabled title="Favorite">&#9734;</button>
+                <button type="button" id="btn-export-companion" class="btn btn-ghost btn-export-companion" disabled title="Export companion card">&#8681;</button>
+                <button type="button" id="btn-call" class="btn btn-ghost btn-call" disabled title="Voice call">&#128222;</button>
+              </div>
             </div>
             <div id="chat-messages" class="chat-messages"></div>
             <form id="chat-form" class="chat-input">
