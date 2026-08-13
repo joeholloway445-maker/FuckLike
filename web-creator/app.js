@@ -204,11 +204,12 @@
       var displayName = $("#pr-display-name").value.trim();
       var description = $("#pr-description").value.trim();
       var photos = $("#pr-photos").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+      var scans = $("#pr-scans").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
       if (!personaId || !displayName) return;
 
       api("/v1/creator/persona", {
         method: "POST",
-        body: { personaId: personaId, displayName: displayName, description: description || undefined, referencePhotoUrls: photos }
+        body: { personaId: personaId, displayName: displayName, description: description || undefined, referencePhotoUrls: photos, scanUrls: scans }
       }).then(function (res) {
         if (res.status === 401) { logout(); return; }
         if (res.status === 409) {
