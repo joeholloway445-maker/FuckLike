@@ -18,6 +18,9 @@
   // Served straight off this same origin by nginx; falls back gracefully (see avatarHtml) if a
   // given persona/prompt combo hasn't been generated and uploaded yet.
   const PRESET_ASSET_BASE = "/assets/personas";
+  // Fallback art for custom (non-preset) companions, keyed by "<style>-<personality>" — see
+  // useArchetypeAssets below and colab/09_batch_pregenerate.py's ARCHETYPES matrix.
+  const TEMPLATE_ASSET_BASE = "/assets/templates";
 
   // No `live` flag: whether a preset actually has generated art is decided at render time by
   // whether its image at PRESET_ASSET_BASE/<id>/default.png actually loads (see avatarHtml's
@@ -174,6 +177,22 @@
     c.scene = PRESET_ASSET_BASE + "/" + presetId + "/default.mp4";
   }
 
+  // Same free, pre-generated-static-asset trick as usePresetAssets, but for custom companions
+  // made in Create (which have no presetId to key off of). HDV_Foundation/colab/
+  // 09_batch_pregenerate.py renders one portrait per (style x personality) archetype in
+  // addition to the named presets — see its ARCHETYPES matrix — and this just picks the
+  // matching one deterministically from the two fields the create form already collects. No
+  // live generation, no gateway call, no cost: works the instant the archetype library is
+  // uploaded, same graceful onerror->initial-letter fallback as presets until then.
+  function useArchetypeAssets(c) {
+    var key = (c.style || "realistic") + "-" + (c.personality || "playful");
+    c.portrait = TEMPLATE_ASSET_BASE + "/" + key + "/default.png";
+    // Distinguishes "placeholder template art" from "a real generated/LoRA portrait" so
+    // maybeFetchPortrait (below) knows it's still allowed to upgrade this one, unlike a
+    // portrait that already came from a real provider.
+    c.portraitIsTemplate = true;
+  }
+
   // Gallery-card thumbnail: marks the card "has-art" (revealing the LIVE badge via CSS) only
   // once the real pre-generated image actually loads — no hardcoded/stale "live" flag to lie
   // about which personas actually have generated art yet.
@@ -185,7 +204,7 @@
   // Calls the live HDV gateway's companion portrait endpoint. No-ops (leaves the fallback
   // initial avatar in place) on any network error, timeout, or non-OK response.
   function maybeFetchPortrait(c) {
-    if (!apiBase() || c.portrait || c.portraitPending) return;
+    if (!apiBase() || (c.portrait && !c.portraitIsTemplate) || c.portraitPending) return;
     c.portraitPending = true;
     var controller = ("AbortController" in window) ? new AbortController() : null;
     var timer = controller ? setTimeout(function () { controller.abort(); }, CHAT_TIMEOUT_MS) : null;
@@ -210,6 +229,7 @@
       c.portraitPending = false;
       if (!data || typeof data.image !== "string" || !data.image) return;
       c.portrait = data.image;
+      c.portraitIsTemplate = false;
       save();
       if (state.activeId === c.id) openChat(c.id); else renderChatList();
       maybeFetchScene(c);
@@ -414,6 +434,13 @@
       state.companions.unshift(companion);
       state.activeId = companion.id;
       save();
+      // Free, instant art from the pre-generated archetype library (see useArchetypeAssets)
+      // instead of a live gateway call — matches how gallery presets work, zero cost, no
+      // Colab/gateway dependency. maybeFetchPortrait still runs after: it's a no-op today
+      // (apiBase() is empty by default) but silently upgrades this template placeholder to a
+      // real live/LoRA portrait later for anyone who does configure a live image provider,
+      // without needing this code to change (see portraitIsTemplate in maybeFetchPortrait).
+      useArchetypeAssets(companion);
       maybeFetchPortrait(companion);
       $("#create-form").reset();
       showView("chat");
