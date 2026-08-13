@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FuckLike Creators — Turn Yourself Into an AI Companion</title>
+  <meta name="description" content="Sign up as a creator, submit your persona, and earn when people chat with your AI companion." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <nav class="nav">
+      <a class="logo" href="#" data-view="home">Fuck<span>Like</span> <span style="color:var(--muted);font-weight:600;font-size:0.85rem;">Creators</span></a>
+      <div class="nav-links">
+        <span id="nav-user" class="nav-user hidden"></span>
+        <button id="nav-dashboard-btn" class="btn btn-ghost hidden" data-view="dashboard">Dashboard</button>
+        <button id="nav-logout-btn" class="btn btn-ghost hidden">Log out</button>
+        <button id="nav-login-btn" class="btn btn-secondary" data-view="auth">Log in / Sign up</button>
+      </div>
+    </nav>
+
+    <section id="view-home" class="view">
+      <div class="hero">
+        <h1>Turn yourself into<br /><em>an AI companion.</em></h1>
+        <p class="sub">Submit your likeness, let people chat with your persona, and earn a share every time it's used. You control what you submit and what stays fictional.</p>
+        <div class="cta-row">
+          <button class="btn btn-primary" data-view="auth">Become a creator</button>
+        </div>
+        <p class="trust">18+ · You choose what you share · Payouts require identity verification</p>
+      </div>
+      <div class="how">
+        <div class="how-step">
+          <div class="num">01</div>
+          <h3>Sign up</h3>
+          <p class="muted">Create a free account with your email.</p>
+        </div>
+        <div class="how-step">
+          <div class="num">02</div>
+          <h3>Submit your persona</h3>
+          <p class="muted">Give your character a name, description, and reference photos.</p>
+        </div>
+        <div class="how-step">
+          <div class="num">03</div>
+          <h3>Earn when she's used</h3>
+          <p class="muted">Every chat, portrait, and scene generated accrues a small balance to you.</p>
+        </div>
+        <div class="how-step">
+          <div class="num">04</div>
+          <h3>Verify &amp; get paid</h3>
+          <p class="muted">Once identity verification is enabled, cash out your balance.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-auth" class="view hidden">
+      <div class="wrap" style="max-width:440px;">
+        <div class="card">
+          <div class="tabs">
+            <button class="tab active" data-auth-tab="login">Log in</button>
+            <button class="tab" data-auth-tab="signup">Sign up</button>
+          </div>
+          <div id="auth-notice"></div>
+          <form id="auth-form">
+            <label>Email
+              <input type="email" id="auth-email" required autocomplete="email" />
+            </label>
+            <label>Password
+              <input type="password" id="auth-password" required autocomplete="current-password" minlength="8" />
+              <span class="field-hint">At least 8 characters.</span>
+            </label>
+            <button type="submit" id="auth-submit" class="btn btn-primary full">Log in</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-dashboard" class="view hidden">
+      <div class="wrap">
+        <div id="dashboard-notice"></div>
+
+        <div class="stat-row">
+          <div class="stat">
+            <div class="label">Accrued balance</div>
+            <div class="value" id="stat-balance">$0.00</div>
+          </div>
+          <div class="stat">
+            <div class="label">Verification status</div>
+            <div class="value"><span id="stat-verification" class="badge badge-unverified">Unverified</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Your creator profile</h2>
+          <p class="card-sub">This is what people see if your persona is featured. Re-submit any time to update it.</p>
+          <form id="profile-form">
+            <label>Display name
+              <input type="text" id="p-display-name" required maxlength="80" placeholder="How you want to be known" />
+            </label>
+            <label>Bio <span class="muted">(optional)</span>
+              <textarea id="p-bio" maxlength="2000" placeholder="A short bio, tone, vibe — whatever you want people to know."></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary full">Save profile</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Your persona</h2>
+          <p class="card-sub">The character people actually chat with. The persona ID links your submissions to your earnings — pick one you'll keep using.</p>
+          <form id="persona-form">
+            <label>Persona ID
+              <input type="text" id="pr-id" required maxlength="80" pattern="[A-Za-z0-9_-]+" placeholder="e.g. your-name (letters, numbers, - and _ only)" />
+              <span class="field-hint">Can't be changed once other people are chatting with it — choose carefully.</span>
+            </label>
+            <label>Display name
+              <input type="text" id="pr-display-name" required maxlength="80" placeholder="Your character's name" />
+            </label>
+            <label>Description <span class="muted">(optional)</span>
+              <textarea id="pr-description" maxlength="2000" placeholder="Personality, style, backstory — whatever defines the character."></textarea>
+            </label>
+            <label>Reference photo URLs <span class="muted">(optional, one per line)</span>
+              <textarea id="pr-photos" placeholder="https://...&#10;https://..."></textarea>
+              <span class="field-hint">Links to photos, not uploaded files — host them somewhere first (e.g. Imgur) and paste the links here.</span>
+            </label>
+            <button type="submit" class="btn btn-primary full">Save persona</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h2>Get paid</h2>
+          <p class="card-sub">Verify your identity, then cash out your accrued balance.</p>
+          <div id="verification-status-block"></div>
+          <button id="btn-start-verification" class="btn btn-secondary full" style="margin-bottom:1rem;">Start identity verification</button>
+          <form id="payout-form">
+            <label>Amount to withdraw (USD)
+              <input type="number" id="payout-amount" min="0.01" step="0.01" placeholder="0.00" />
+            </label>
+            <button type="submit" id="btn-request-payout" class="btn btn-primary full">Request payout</button>
+          </form>
+          <div id="payout-notice"></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer-note">FuckLike Creators · 18+ · <a href="https://fucklike.ai" style="color:var(--pink);">fucklike.ai</a></p>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
