@@ -1,124 +1,95 @@
-# FuckLike — Go Live (Hostinger KVM4)
+# FuckLike — Production Deployment Guide
 
-You already pay for the server. This gets the real system running on it.
-
-## What this gives you
-
-- HDV backend (HOPE / APEX / KNOLL gateway) running on your KVM4
-- FuckLike web app (create companions, chat, gallery, settings)
-- Everything under your control
-- Haptics stay opt-in / off by default
-
----
-
-## 1. SSH into your KVM4
-
-```bash
-ssh root@YOUR_VPS_IP
-```
-
-(Use the IP from Hostinger hPanel)
-
----
-
-## 2. One-time server setup
-
-```bash
-apt-get update && apt-get -y upgrade
-apt-get install -y git curl ca-certificates
-
-# Node 22
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt-get install -y nodejs
-
-# Optional but recommended: Caddy for HTTPS
-apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-apt-get update && apt-get install -y caddy
-```
-
----
-
-## 3. Get the HDV backend running
-
-```bash
-cd /opt
-git clone https://github.com/joeholloway445-maker/HDV_Foundation.git
-cd HDV_Foundation
-
-cp .env.example .env
-# Edit .env and set at least:
-#   PORT=8787
-#   HDV_API_KEY=some-long-random-string
-#   HDV_CORS_ORIGIN=https://fucklike.ai,https://www.fucklike.ai,https://app.fucklike.ai
-
-npm ci
-npm run gateway
-```
-
-Leave this running (or install the systemd service from `deploy/hdv-gateway.service`).
-
-Test:
-
-```bash
-curl http://127.0.0.1:8787/v1/health
-```
-
----
-
-## 4. Put the FuckLike website on the server
-
-```bash
-mkdir -p /var/www/fucklike
-# From this repo:
-#   git clone https://github.com/joeholloway445-maker/FuckLike.git
-#   cp -r FuckLike/web/* /var/www/fucklike/
-```
-
----
-
-## 5. Point the domain + HTTPS (Caddy)
-
-Edit `/etc/caddy/Caddyfile`:
+## Architecture
 
 ```
-api.fucklike.ai {
-    reverse_proxy 127.0.0.1:8787
-}
-
-fucklike.ai, www.fucklike.ai {
-    root * /var/www/fucklike
-    file_server
-    try_files {path} /index.html
-}
+RunPod Persistent Pod (RTX 3090, ~$0.22/hr)
+├── A1111 WebUI API  :7860   (NSFW generation, Pony Diffusion / epiCRealism XL)
+├── Generation Router :8000  (FastAPI — smart routing + queue polling)
+│     ├── A1111 backend    → explicit_level >= 1 (GPU required)
+│     └── Prodia fallback  → explicit_level 0-1, or A1111 down ($0.001/gen)
+│
+Google Drive  ← all generated images uploaded here
+Supabase      ← metadata + live user generation_queue
+Apps Script   ← batch trigger (polls Google Sheet of personas)
 ```
 
-Then:
+## Step 1 — RunPod Pod Setup
 
-```bash
-systemctl reload caddy
+1. Go to **runpod.io** → New Pod
+2. Template: **RunPod Stable Diffusion** (A1111 preinstalled)
+3. GPU: RTX 3090 (24GB VRAM, $0.22/hr) or A5000 ($0.16/hr)
+4. Storage: 50GB+
+5. Set environment variables in RunPod UI:
+   ```
+   CIVITAI_API_KEY      = your CivitAI API key (free, needed for model download)
+   SUPABASE_URL         = your Supabase project URL
+   SUPABASE_SERVICE_KEY = service role key (bypasses RLS)
+   PRODIA_API_KEY       = your Prodia API key (fallback)
+   PERSONAS_FOLDER_ID   = 1M_2W9sND3dAZdfyX61xZUpUvBCPePuFb
+   ARCHETYPES_FOLDER_ID = <Drive subfolder for archetypes>
+   NSFW_MODEL           = pony   (or: epick / illust / realvis)
+   ```
+6. Upload `runpod/start.sh` to `/start.sh` and `chmod +x /start.sh`
+7. Upload all `colab/*.py` files to `/workspace/`
+8. Run `/start.sh` (or set as container start command)
+9. Copy the RunPod **public URL** for port 8000 → paste into Apps Script `COLAB_URL`
+
+## Step 2 — Models (via CivitAI)
+
+Get a free API key at https://civitai.com/user/account
+
+| Model | CivitAI ID | Best for |
+|-------|-----------|---------|
+| Pony Diffusion V6 XL | 290640 | All-around NSFW, anime + realistic |
+| epiCRealism XL | 456538 | Photorealistic, SFW+NSFW |
+| Illustrious XL | 795765 | Anime-style |
+
+`start.sh` downloads Pony + epiCRealism automatically on first launch.
+
+## Step 3 — Body Archetype Pre-generation
+
+Run once after pod is up to generate 10 base templates:
+
+```python
+# In a Colab notebook or RunPod terminal:
+import requests
+# This hits your pod's router to generate all archetypes
+resp = requests.post("http://<POD_URL>:8000/generate_archetypes")
+print(resp.json())
 ```
 
-Make sure DNS A records for `fucklike.ai` and `api.fucklike.ai` point at your VPS IP first.
+Or add `generate_all_archetypes(...)` call to `start.sh` after A1111 is ready.
 
----
+## Step 4 — Apps Script
 
-## 6. Result
+1. Open **script.google.com** → paste `scripts/apps_script_trigger.js`
+2. Set `COLAB_URL = "http://<POD_URL>:8000"` (RunPod public URL)
+3. Set a time trigger: **every 10 minutes** → `runBatch()`
+4. First run: call `setupSheet()` to create the Personas tab
 
-- https://fucklike.ai → FuckLike companion app (create, chat, gallery, settings)
-- https://api.fucklike.ai → your HDV backend
+## Step 5 — Supabase Setup
 
-Chat will still use local replies until `API_BASE` is set in `web/app.js` to `https://api.fucklike.ai`
-— once set, chat calls the gateway's `POST /v1/companion/chat` (see `HDV_Foundation/companion/`)
-and falls back to local replies automatically if the gateway is unreachable.
+Run `scripts/generation_queue.sql` in the **catsino-casino** project dashboard
+(project: `edoprprqqtvtezexskpr`)
 
----
+Live user requests hit `POST /queue` on your frontend → insert row into
+`generation_queue` → router picks it up within 20 seconds.
 
-## Ownership
+## Cost Estimate
 
-- Server: yours
-- Backend code: yours
-- Frontend: yours
-- Models: start with local/free (Ollama) or Colab when you need GPU
-- Hardware features: opt-in only
+| Mode | Cost | Throughput |
+|------|------|-----------|
+| RunPod RTX 3090 | $0.22/hr | ~4 images/min @ 768×1024 |
+| Prodia fallback | $0.001/gen | ~15-30s/image |
+| Prodia (100/day) | $0.10/day | Good for non-explicit |
+
+Running 8hr/day on RunPod: **~$1.75/day** for unlimited explicit generation.
+
+## Switching Between Colab and RunPod
+
+The `generation_router.py` uses `A1111_URL` env var, so:
+- **Colab**: `A1111_URL=http://127.0.0.1:7860` (localhost)
+- **RunPod**: `A1111_URL=http://<pod-internal>:7860` (already set in start.sh)
+
+The Apps Script only needs the public URL for port 8000.
