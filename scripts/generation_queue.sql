@@ -5,17 +5,21 @@ CREATE TABLE IF NOT EXISTS public.generation_queue (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id),
   persona_name text NOT NULL,
+  channel text NOT NULL DEFAULT 'nsfw'
+    CHECK (channel IN ('nsfw', 'sfw')),  -- nsfw -> Perchance, sfw -> Kaggle/Colab (game + marketing art)
   spec jsonb NOT NULL DEFAULT '{}',
   status text NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'processing', 'done', 'error')),
+    CHECK (status IN ('pending', 'processing', 'done', 'error', 'needs_review')),
   error_msg text,
   drive_file_ids text[] DEFAULT '{}',
+  rejected_count int DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   started_at timestamptz,
   finished_at timestamptz
 );
 
 CREATE INDEX IF NOT EXISTS idx_genq_status ON public.generation_queue(status);
+CREATE INDEX IF NOT EXISTS idx_genq_channel ON public.generation_queue(channel);
 CREATE INDEX IF NOT EXISTS idx_genq_user ON public.generation_queue(user_id);
 
 ALTER TABLE public.generation_queue ENABLE ROW LEVEL SECURITY;
