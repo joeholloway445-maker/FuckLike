@@ -1,6 +1,19 @@
 # FuckLike — Production Deployment Guide
 
-## Architecture
+Two parallel paths exist. Pick one, or run both and let load decide:
+
+- **Paid path (this doc, Steps 1-5)**: RunPod + A1111 + Prodia. Fastest,
+  highest quality, ~$1.75/day for 8hr GPU runtime.
+- **Free path (`n8n/README.md`)**: Perchance (browser-automated, free NSFW
+  generation) for the explicit channel + Kaggle/Colab free GPU tiers for
+  SFW/game material, orchestrated by self-hosted n8n with an automated
+  quality gate. $0/day, lower throughput and no true "always-hot" GPU.
+
+Both write to the same Drive folders and Supabase `image_assets` /
+`generation_queue` tables, so they're interchangeable from the frontend's
+point of view — only the `channel` field on a queue row picks the path.
+
+## Architecture — Paid Path
 
 ```
 RunPod Persistent Pod (RTX 3090, ~$0.22/hr)
@@ -13,6 +26,34 @@ Google Drive  ← all generated images uploaded here
 Supabase      ← metadata + live user generation_queue
 Apps Script   ← batch trigger (polls Google Sheet of personas)
 ```
+
+## Architecture — Free Path
+
+```
+n8n (self-hosted, free) — fucklike_batch_trigger_workflow.json
+  polls generation_queue every 10 min
+        │
+        ▼
+n8n orchestrator webhook — fucklike_orchestrator_workflow.json
+  routes on spec.channel
+        │
+   ┌────┴────┐
+ nsfw       sfw
+   │          │
+   ▼          ▼
+perchance/          colab/kaggle_persona_generator.py
+perchance_router.py   (Kaggle 30h/week free T4, or Colab free tier)
+  → Playwright-drives      → game reference art (Periliminal)
+    perchance.org           → SFW marketing assets (FuckLike)
+  → QC gate (heuristic +
+    Claude vision) auto-
+    retries bad renders
+  → needs_review flag on
+    persistent failures
+```
+
+See `n8n/README.md` for full setup of the free path — this doc covers the
+RunPod paid path below.
 
 ## Step 1 — RunPod Pod Setup
 
@@ -83,8 +124,13 @@ Live user requests hit `POST /queue` on your frontend → insert row into
 | RunPod RTX 3090 | $0.22/hr | ~4 images/min @ 768×1024 |
 | Prodia fallback | $0.001/gen | ~15-30s/image |
 | Prodia (100/day) | $0.10/day | Good for non-explicit |
+| Perchance (free path) | $0 | ~1 image/30-90s, sequential only |
+| Kaggle free GPU | $0 | 30 GPU-hrs/week, 12h/session max |
+| Vision QC (Claude Haiku) | ~$0.003-0.01/image | Only runs on images that pass heuristics |
 
 Running 8hr/day on RunPod: **~$1.75/day** for unlimited explicit generation.
+Running the free path 24/7: **$0/day** GPU cost, just whatever you pay to
+host n8n (a $5/mo VPS covers it, or run it on a machine you already have).
 
 ## Switching Between Colab and RunPod
 
