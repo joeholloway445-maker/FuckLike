@@ -1,0 +1,11 @@
+{
+  "bind_host": "127.0.0.1",
+  "port": 8765,
+  "facefusion_dir": "",
+  "output_dir": "",
+  "execution_providers": ["tensorrt", "cuda"],
+  "enhance": true,
+  "keep_audio": true,
+  "require_consent": true,
+  "require_adult": true
+}
