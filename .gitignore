@@ -1,0 +1,7 @@
+local-swap/settings.json
+local-swap/__pycache__/
+local-swap/.venv/
+**/.fucklike/
+swaps/
+*.onnx
+*.engine
