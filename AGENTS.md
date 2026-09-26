@@ -9,137 +9,101 @@ The full system is intentionally split so another AI (or human) can pick it up a
 | Path | Purpose |
 |------|---------|
 | `http://127.0.0.1:7861` | 64×64 Persona Grid Studio (4,096 photorealistic creators generated in `Periliminal.Space`, integrated into `web/` via postMessage bridge) |
-| `web/` | Working companion web app (create, gallery, chat, settings). Pure static HTML/JS/CSS. No build step. |
-| `docs/ARCHITECTURE.md` | Full system map (Companion Core, Spatial/Godot, LingBot Infinity, Haptics opt-in, Backend Brain, Google Colab) |
-| `docs/FACE_SWAP_LOCAL.md` | Local NVIDIA RTX 5080 FaceFusion workstation spec (NSFW-capable, no cloud filter) |
-| `docs/ANTIGRAVITY_TASK.md` | Copy-paste task for Google Antigravity to implement Goal E |
-| `local-swap/` | Local FaceFusion wrapper + FastAPI job API (build this; do not vendor FaceFusion source) |
-| `DEPLOY.md` | Exact steps to put backend + frontend live on Hostinger KVM4 |
-| `.agents/skills/face-swap-local/SKILL.md` | Antigravity skill for the local swap stack |
+| `web/` | Companion web app. Includes Gallery, Chat, 64x64 Persona Matrix, Rooms + Swap (`web/swap-rooms.js`). |
+| `docs/ARCHITECTURE.md` | System map |
+| `docs/FACE_SWAP_LOCAL.md` | Local RTX 5080 FaceFusion spec |
+| `docs/ROOMS_UE5.md` | IMVU-style rooms, Unreal graphics path |
+| `docs/ANTIGRAVITY_TASK.md` | Copy-paste task for Google Antigravity |
+| `local-swap/` | FaceFusion wrapper + FastAPI. Do not vendor FaceFusion. |
+| `DEPLOY.md` | Hostinger KVM4 go-live |
+| `.agents/skills/face-swap-local/SKILL.md` | Swap skill |
+| `.agents/skills/rooms-unreal/SKILL.md` | Rooms skill |
 
 ## Related repos (owner: joeholloway445-maker)
 
-These are the rest of the stack. Connect them; do not re-invent.
-
 | Repo | Role |
 |------|------|
-| `HDV_Foundation` | Real multi-agent backend (HOPE / DREAM / VISION / KNOLL / APEX), gateway, orchestrator, deploy scripts for Hostinger |
-| `hdv-orchestrator` | Apex-controlled 20,480-node topology service |
-| `hdv-agent-core` | Hierarchical agent core with one-way memory |
-| `FuckLike-Godot-PeriHuman` | Godot 4 client (3D spaces, companions, teledildonics hooks) |
-| `gspot` | Godot 4 plugin for buttplug.io (haptics) |
+| `HDV_Foundation` | Multi-agent backend (HOPE / DREAM / VISION / KNOLL / APEX) |
+| `hdv-orchestrator` | Apex-controlled topology service |
+| `hdv-agent-core` | Hierarchical agent core |
+| `PeriliminalSpace_UE5` | **Room renderer.** Unreal 5.8. This is the graphics path for rooms. |
+| `FuckLike-Godot-PeriHuman` | Optional lightweight client. Not the room graphics path. |
+| `gspot` | Godot buttplug.io plugin |
 | `godot-multiplayer` | Multiplayer + VOIP template |
-| `godot4-third-person-controller` | Movement (use this, not shooter controls) |
-| `tps-demo` | High-quality lighting/environment — **strip combat**, keep visuals |
+| `godot4-third-person-controller` | Movement reference |
+| `tps-demo` | Lighting reference only if borrowing ideas. Do not make this the room client. |
 | `mistral-APEX-Nodes` | Inference / persona models |
-| `lingbot-world` | World model (LingBot Infinity direction) |
+| `lingbot-world` | World model |
 
 ## Product rules (do not violate)
 
-1. **Everything ships together** — no “phase 2 later” for core features.
-2. **Haptics / teledildonics / haptic suits are strictly opt-in.** Default = OFF. Nothing is locked behind hardware.
-3. User can create companions, chat, use images/voice, enter 3D spaces, and use LingBot environments **with zero hardware**.
-4. Prefer ownership: run brain on the user’s Hostinger KVM4. Use free/cheap compute (Ollama local, Google Colab free GPU) for what is not owned. Heavy uncensored face/video swap runs on the owner’s **local RTX 5080**, not Hostinger and not filtered SaaS.
-5. No placeholder buttons on the main path. If it’s in the UI, it must do something.
-6. Adult content is first-class. Do not add cloud NSFW classifiers that refuse explicit targets. Age gate stays. Consent attestation stays.
-7. Do not upload source faces or target media to third-party swap websites.
-
-## Current web app behavior
-
-- File: `web/index.html` + `web/app.js` + `web/styles.css`
-- Works offline immediately (open `index.html` or serve the folder).
-- Age gate → Home → Gallery / Create / Chat / Settings.
-- Companions and settings persist in `localStorage`.
-- Chat uses local personality replies until `API_BASE` is set.
-- In `web/app.js` near the top:
-
-```js
-const API_BASE = "";  // set to "https://api.fucklike.ai" when gateway is live
-```
+1. Everything ships together.
+2. Haptics are strictly opt-in. Default OFF.
+3. Core loops work with zero extra hardware. Rooms lobby works with Unreal offline.
+4. Own the stack. Face swap stays on the local RTX 5080. Do not send faces to SaaS swappers.
+5. No dead primary buttons.
+6. Adult content is first-class. Age gate + consent. No cloud NSFW classifier on swaps or room poses.
+7. **Rooms are IMVU-type social spaces rendered in Unreal.** Do not rebuild them as a Godot scene and call it done.
 
 ## How another AI should proceed
 
-### Goal A — Make the public site real (recommended first)
+### Goal A — Public site
+Follow `DEPLOY.md`. Gateway is `HDV_Foundation`. Chat already calls `POST /v1/companion/chat`.
 
-1. Follow `DEPLOY.md` on the Hostinger KVM4.
-2. Clone/run `HDV_Foundation` as the API (`api.fucklike.ai`).
-3. Serve `web/` as `fucklike.ai`.
-4. Set `API_BASE` in `app.js` to the live gateway. **Already wired** — `app.js` calls
-   `POST /v1/companion/chat` (not `/v1/intent`; that endpoint is HOPE's task-routing/governance
-   surface, not a persona chat surface — see `HDV_Foundation/companion/`) and falls back to the
-   local personality pool on any network failure/timeout, so chat degrades gracefully instead of
-   breaking. No frontend code changes needed to go live — only the `API_BASE` value.
+### Goal B — Spatial / rooms (CURRENT, with Goal E)
+Read `docs/ROOMS_UE5.md`.
 
-### Goal B — Spatial / 3D
+Web lobby is already in `web/` (shells, furniture nodes, public/private, invite, poses, room chat, Launch Unreal).
 
-1. Start from `FuckLike-Godot-PeriHuman` + `godot4-third-person-controller`.
-2. Pull lighting/environment from `tps-demo` (remove all combat).
-3. Wire WebSocket to the running HDV gateway.
-4. Attach `gspot` only behind the same opt-in Settings flag used in the web app.
+Engine work belongs in `PeriliminalSpace_UE5`:
+- One level per shell id
+- Action nodes matching furniture ids
+- Pixel Streaming on `http://127.0.0.1:8888` by default
+- At least `velvet-bedroom` walkable, with the bed node driven by the lobby
 
-### Goal C — World model + GPU
+Godot is optional and secondary. Do not spend this pass porting rooms into Godot.
 
-1. LingBot Infinity / `lingbot-world` for continuous environment state.
-2. Google Colab for GPU burst (LingBot, heavy image/video, large personas).
-3. Orchestrate Colab jobs from the backend; do not require Colab for basic chat.
+### Goal C — World model
+LingBot / `lingbot-world`. Not required for the first room.
 
-### Goal D — Inference without paid lock-in
+### Goal D — Inference
+Ollama on the KVM4 for chat. Swappable provider seam.
 
-- Prefer Ollama (or similar) on the KVM4 for default chat.
-- Fall back to Colab or a cheap OpenAI-compatible endpoint only when needed.
-- Keep the provider behind the existing HDV provider seam so it stays swappable.
+### Goal E — Local RTX 5080 face swap
+Swap **panel is already in `web/`**. Do not build a second one.
 
-### Goal E — Local RTX 5080 face swap (CURRENT BUILD TASK)
+Finish the worker:
+- FaceFusion 3.9.x official repo, CUDA + TensorRT
+- `local-swap/facefusion_wrapper.py` + install scripts
+- API already on `127.0.0.1:8765` with CORS for localhost
+- Panel unlocks when `/health` answers
 
-Implement `local-swap/` per `docs/FACE_SWAP_LOCAL.md` and `.agents/skills/face-swap-local/SKILL.md`.
+## Environment
 
-**Stack decision (do not reopen):**
-- Primary engine: official FaceFusion (`https://github.com/facefusion/facefusion`), current 3.9.x line.
-- Execution: CUDA + TensorRT on the owner’s NVIDIA RTX 5080.
-- Wrapper: FuckLike FastAPI job API in `local-swap/` that shells/CLI-calls FaceFusion. Do **not** copy FaceFusion source into this repo.
-- Optional later backends behind the same interface: Rope / Roop-Unleashed, DeepFaceLab trained models, ComfyUI ReActor.
-- Bind localhost only by default (`127.0.0.1`). No public tunnel unless the owner asks.
-- Wire a Swap tab in `web/` that talks to `http://127.0.0.1:8765` when the local worker is up, and hides/disabled when it is not.
-- Route type `face_swap` can later join `colab/generation_router.py` + `scripts/generation_queue.sql`, but local 5080 is the first working path.
+- Local: Windows 11 or Linux, RTX 5080, CUDA 12.8/12.9, FFmpeg, Unreal 5.8 for `PeriliminalSpace_UE5`
+- Hostinger KVM4 for the public brain
+- Domains: `fucklike.ai`, `api.fucklike.ai`
 
-Read `docs/ANTIGRAVITY_TASK.md` and execute that task end-to-end.
+## Do not
 
-## Environment / tools expected
+- Vendor FaceFusion weights
+- Send faces to Clothoff / DeepSwap / FaceSwapper.ai
+- Train DeepFaceLab in this pass
+- Rename HOPE / DREAM / VISION / KNOLL / APEX
+- Treat the CSS stage as the final room render
+- Build a new Unreal project. Extend `PeriliminalSpace_UE5`.
 
-- Node 22+
-- Git
-- Hostinger KVM4 (Ubuntu) — user already has this
-- Caddy (or nginx) for HTTPS
-- Optional: Docker, Ollama, Google Colab, Godot 4.x
-- Local workstation: Windows 11 (primary) or Linux, NVIDIA RTX 5080, latest Game Ready/Studio driver, CUDA 12.8/12.9, FFmpeg on PATH
-- Domains: `fucklike.ai`, `fucklike.me`, `api.fucklike.ai` (DNS must point at the VPS)
-
-## Non-goals / do not do
-
-- Do not require hardware for any core feature.
-- Do not leave “coming soon” on primary CTAs.
-- Do not put secrets in the repo.
-- Do not assume SSH access — produce copy-paste commands for the owner.
-- Do not rename HOPE / DREAM / VISION / KNOLL / APEX (system architecture names).
-- Do not vendor FaceFusion / InsightFace weights into git.
-- Do not send faces to Clothoff, DeepSwap, FaceSwapper.ai, or any SaaS swapper.
-- Do not add minor-safety theater that also blocks adult content. Age-gate + consent flag only.
-- Do not train DeepFaceLab as the first milestone. FaceFusion one-shot first.
-
-## Quick local test (no server)
+## Quick local test
 
 ```bash
 cd web
 python3 -m http.server 8080
-# open http://localhost:8080
 ```
 
-Age-gate → create a companion → chat. All local.
+Age-gate → Rooms → create Velvet Bedroom → invite a companion → pose. Swap stays locked until `python local-swap/api.py` is up.
 
 ## Source of truth
 
-- Product architecture: `docs/ARCHITECTURE.md`
-- Local swap spec: `docs/FACE_SWAP_LOCAL.md`
+- Rooms: `docs/ROOMS_UE5.md`
+- Swap: `docs/FACE_SWAP_LOCAL.md`
 - Antigravity prompt: `docs/ANTIGRAVITY_TASK.md`
-- Go-live steps: `DEPLOY.md`
-- This file: how an AI or collaborator should continue without re-deriving the plan.
