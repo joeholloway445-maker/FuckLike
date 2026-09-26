@@ -2,7 +2,10 @@
 
 Companion platform. Own the stack.
 
-- **Web app** (`web/`) — works offline now: create companions, gallery, chat, settings. Haptics opt-in only.
+- **Web app** (`web/`)
+
+- **64×64 Persona Matrix** (`http://127.0.0.1:7861/`) — 4,096 social media creators & companions with photorealistic Juggernaut-XL portraits, demographics, and social bios connected directly into the web app chat.
+ — works offline now: create companions, gallery, chat, settings. Haptics opt-in only.
 - **Deploy** (`DEPLOY.md`) — put backend + site live on your Hostinger KVM4.
 - **Architecture** (`docs/ARCHITECTURE.md`) — full system including LingBot Infinity + Colab.
 - **AI handoff** (`AGENTS.md`) — everything another AI needs to continue without re-deriving the plan.

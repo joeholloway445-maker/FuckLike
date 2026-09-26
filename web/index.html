@@ -28,6 +28,7 @@
         <a class="logo" href="#" data-view="home">Fuck<span>Like</span></a>
         <div class="nav-links">
           <button data-view="gallery" class="nav-btn">Companions</button>
+          <button data-view="matrix" class="nav-btn nav-btn-matrix">Persona Matrix <span class="matrix-badge-count">4,096</span></button>
           <button data-view="create" class="nav-btn">Create</button>
           <button data-view="chat" class="nav-btn">Chat</button>
           <button data-view="store" class="nav-btn">Store</button>
@@ -42,12 +43,23 @@
           <div class="cta-row">
             <button class="btn btn-primary" data-view="create">Make your companion</button>
             <button class="btn btn-secondary" data-view="gallery">Browse companions</button>
+            <button class="btn btn-matrix-cta" data-view="matrix">Explore 64×64 Matrix</button>
           </div>
           <p class="trust">18+ · Private · Hardware optional · No download required</p>
         </div>
       </section>
 
       <section id="view-gallery" class="view hidden">
+        <div class="matrix-promo-banner" data-view="matrix">
+          <div class="matrix-promo-content">
+            <div class="matrix-promo-badge">⚡ 64×64 PERSONA MATRIX CONNECTED</div>
+            <div class="matrix-promo-text">
+              <strong>Explore 4,096 Social Media Creators & Companions</strong>
+              <span>Full demographics, photorealistic Juggernaut-XL portraits, bios & logins • Live Studio on :7861</span>
+            </div>
+          </div>
+          <button class="btn btn-primary" data-view="matrix" style="padding:0.6rem 1.4rem;font-size:0.88rem;pointer-events:none;">Open Matrix Grid →</button>
+        </div>
         <div class="section-head">
           <h2>Meet companions</h2>
           <input type="search" id="gallery-search" class="search-input" placeholder="Search by name, vibe, personality…" autocomplete="off" />
@@ -56,7 +68,32 @@
         <div class="grid" id="gallery-grid"></div>
       </section>
 
-      <section id="view-create" class="view hidden">
+      
+      <section id="view-matrix" class="view hidden">
+        <div class="matrix-header-bar">
+          <div class="matrix-title-wrap">
+            <h2>
+              <span>64×64 Creator Matrix</span>
+              <span id="matrix-conn-badge" class="badge-conn-live">● Studio 7861 Live</span>
+              <span class="badge-count-pill">4,096 Creators</span>
+            </h2>
+            <p class="muted">
+              Select any persona in the grid, inspect her full backstory, prompt, and demographics, and click <strong>"🔥 Chat in FuckLike"</strong> to launch her directly into chat!
+            </p>
+          </div>
+          <div class="matrix-actions-wrap">
+            <button id="btn-reload-matrix-frame" class="btn btn-ghost" title="Reload Matrix Frame">⟳ Reload</button>
+            <a href="http://127.0.0.1:7861/" target="_blank" class="btn btn-secondary" style="font-size:0.85rem;padding:0.6rem 1.1rem;">
+              Open Standalone Tab ↗
+            </a>
+          </div>
+        </div>
+        <div class="matrix-frame-container">
+          <iframe id="matrix-iframe" src="http://127.0.0.1:7861/" title="CreatorMatrix 64x64 Studio"></iframe>
+        </div>
+      </section>
+
+<section id="view-create" class="view hidden">
         <div class="create-wrap">
           <h2>Make your companion</h2>
           <form id="create-form">
@@ -209,7 +246,21 @@
               <span>Speak replies aloud (text-to-speech)</span>
             </label>
           </div>
-          <div class="setting-group">
+                    <div class="setting-group">
+            <h3>Persona Matrix (Studio 7861)</h3>
+            <p class="muted">64×64 grid (4,096 creators) hosted locally on your machine.</p>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;">
+              <span id="matrix-status-badge" class="badge" style="background:rgba(0,230,118,0.15);color:#00e676;border:1px solid #00e676;padding:4px 10px;border-radius:6px;font-size:0.8rem;font-weight:700;">Checking Studio 7861...</span>
+              <button id="btn-refresh-matrix" class="btn btn-ghost" style="padding:4px 8px;font-size:0.8rem;">Check Status</button>
+            </div>
+            <label class="dev-field">
+              <span>Persona Matrix URL</span>
+              <input type="text" id="set-matrix-url" placeholder="http://127.0.0.1:7861" autocomplete="off" spellcheck="false" />
+            </label>
+            <button id="btn-open-matrix-tab" class="btn btn-secondary" data-view="matrix">Open 64×64 Matrix Grid</button>
+          </div>
+
+<div class="setting-group">
             <h3>Developer</h3>
             <p class="muted">Raw knobs, no guardrails. If you break it, it's on you — that's also the best way to test it.</p>
             <label class="toggle">

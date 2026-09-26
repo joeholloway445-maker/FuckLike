@@ -91,7 +91,7 @@
   function defaultSettings() {
     return {
       haptics: false, suit: false, prefer3d: false, nsfw: true, voice: false,
-      intensity: 3, adherence: 3, devMode: false, apiBaseOverride: ""
+      intensity: 3, adherence: 3, devMode: false, apiBaseOverride: "", matrixUrl: "http://127.0.0.1:7861"
     };
   }
 
@@ -301,6 +301,7 @@
         if (v) {
           showView(v);
           if (v === "gallery") renderGallery();
+          if (v === "matrix") checkMatrixStatus();
           if (v === "chat") renderChatList();
           if (v === "settings") renderSettings();
           if (v === "store") renderStore();
@@ -1151,6 +1152,9 @@
     $("#adherence-desc").textContent = ADHERENCE_DESC[state.settings.adherence] || "";
     $("#set-dev-mode").checked = !!state.settings.devMode;
     $("#set-api-base").value = state.settings.apiBaseOverride || "";
+    var mInput = $("#set-matrix-url");
+    if (mInput) mInput.value = state.settings.matrixUrl || "http://127.0.0.1:7861";
+    checkMatrixStatus();
   }
 
   function initSettings() {
@@ -1162,6 +1166,18 @@
     $("#set-intensity").oninput = function (e) { state.settings.intensity = Number(e.target.value); renderSettings(); save(); };
     $("#set-adherence").oninput = function (e) { state.settings.adherence = Number(e.target.value); renderSettings(); save(); };
     $("#set-dev-mode").onchange = function (e) { state.settings.devMode = e.target.checked; save(); };
+    var mInput = $("#set-matrix-url");
+    if (mInput) {
+      mInput.onchange = function (e) {
+        state.settings.matrixUrl = e.target.value.trim() || "http://127.0.0.1:7861";
+        save();
+        checkMatrixStatus();
+      };
+    }
+    var mRef = $("#btn-refresh-matrix");
+    if (mRef) {
+      mRef.onclick = function () { checkMatrixStatus(); };
+    }
     $("#set-api-base").onchange = function (e) { state.settings.apiBaseOverride = e.target.value.trim(); save(); };
     $("#btn-disable-all-hw").onclick = function () {
       state.settings.haptics = false;
@@ -1214,6 +1230,136 @@
   initFavorite();
   initExportCompanion();
   initStore();
+  
+  function checkMatrixStatus() {
+    var url = (state.settings && state.settings.matrixUrl) || "http://127.0.0.1:7861";
+    var iframe = $("#matrix-iframe");
+    if (iframe) {
+      var currentSrc = iframe.getAttribute("src");
+      if (!currentSrc || (currentSrc !== url && currentSrc !== (url + "/"))) {
+        iframe.src = url;
+      }
+    }
+    fetch(url + "/manifest.json", { method: "GET", cache: "no-store", mode: "cors" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (manifest) {
+        var count = (manifest && manifest.rendered && manifest.rendered.length) || 4096;
+        var badge = $("#matrix-conn-badge");
+        var settingsBadge = $("#matrix-status-badge");
+        if (badge) {
+          badge.textContent = "● Studio 7861 Live (" + count + " rendered)";
+          badge.className = "badge-conn-live";
+        }
+        if (settingsBadge) {
+          settingsBadge.textContent = "🟢 Connected (Studio 7861 Live • " + count + " Personas)";
+          settingsBadge.style.color = "#00e676";
+          settingsBadge.style.borderColor = "#00e676";
+        }
+      })
+      .catch(function () {
+        var badge = $("#matrix-conn-badge");
+        var settingsBadge = $("#matrix-status-badge");
+        if (badge) {
+          badge.textContent = "○ Studio 7861 Offline";
+          badge.className = "badge-conn-offline";
+        }
+        if (settingsBadge) {
+          settingsBadge.textContent = "🔴 Offline — start Studio on 7861";
+          settingsBadge.style.color = "#ff5252";
+          settingsBadge.style.borderColor = "#ff5252";
+        }
+      });
+  }
+
+  function openPersonaInChat(p) {
+    if (!p) return;
+    var companionId = p.id || ("matrix_" + (p.name || "companion").toLowerCase().replace(/[^a-z0-9]/g, "_"));
+    var existing = state.companions.filter(function (c) {
+      return (c.presetId && c.presetId === companionId) || 
+             (c.matrixId && c.matrixId === companionId) || 
+             (c.name && c.name.toLowerCase() === (p.name || "").toLowerCase());
+    })[0];
+
+    if (!existing) {
+      var personalityKey = "playful";
+      var plower = (p.personality || "").toLowerCase();
+      if (plower.indexOf("brat") !== -1) personalityKey = "bratty";
+      else if (plower.indexOf("roman") !== -1) personalityKey = "romantic";
+      else if (plower.indexOf("submis") !== -1) personalityKey = "submissive";
+      else if (plower.indexOf("dom") !== -1) personalityKey = "dominant";
+      else if (plower.indexOf("sensual") !== -1) personalityKey = "sensual";
+      else if (plower.indexOf("intel") !== -1) personalityKey = "intellectual";
+      else if (plower.indexOf("shy") !== -1) personalityKey = "shy";
+
+      var greeting = "Hey… I'm " + p.name + ". " + 
+        (p.backstory ? p.backstory.slice(0, 140) : "I'm so glad you pulled me from the matrix.");
+
+      existing = {
+        id: uid(),
+        presetId: companionId,
+        matrixId: companionId,
+        name: p.name,
+        portrait: p.portrait,
+        style: "realistic",
+        personality: personalityKey,
+        appearance: p.appearance || "",
+        backstory: p.backstory || "",
+        age: p.age || 22,
+        adult: true,
+        favorite: true,
+        prompt: p.prompt || "",
+        social: p.social || null,
+        messages: [{ role: "bot", text: greeting }]
+      };
+      state.companions.unshift(existing);
+      save();
+    } else {
+      if (p.portrait) {
+        existing.portrait = p.portrait;
+        save();
+      }
+    }
+
+    state.activeId = existing.id;
+    showView("chat");
+    renderChatList();
+    openChat(existing.id);
+  }
+
+  function initMatrixBridge() {
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "fucklike:open_persona") {
+        openPersonaInChat(e.data.persona);
+      }
+    });
+
+    try {
+      var pending = localStorage.getItem("fucklike_pending_companion");
+      if (pending) {
+        localStorage.removeItem("fucklike_pending_companion");
+        var p = JSON.parse(pending);
+        if (p) openPersonaInChat(p);
+      }
+    } catch (err) {}
+
+    var reloadBtn = $("#btn-reload-matrix-frame");
+    if (reloadBtn) {
+      reloadBtn.onclick = function () {
+        var iframe = $("#matrix-iframe");
+        if (iframe) {
+          iframe.src = (state.settings && state.settings.matrixUrl) || "http://127.0.0.1:7861";
+        }
+        checkMatrixStatus();
+      };
+    }
+
+    checkMatrixStatus();
+  }
+
+  initMatrixBridge();
   initSettings();
   if (state.ageOk) showView("home");
 })();

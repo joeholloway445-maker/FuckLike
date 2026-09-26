@@ -8,6 +8,7 @@ The full system is intentionally split so another AI (or human) can pick it up a
 
 | Path | Purpose |
 |------|---------|
+| `http://127.0.0.1:7861` | 64×64 Persona Grid Studio (4,096 photorealistic creators generated in `Periliminal.Space`, integrated into `web/` via postMessage bridge) |
 | `web/` | Working companion web app (create, gallery, chat, settings). Pure static HTML/JS/CSS. No build step. |
 | `docs/ARCHITECTURE.md` | Full system map (Companion Core, Spatial/Godot, LingBot Infinity, Haptics opt-in, Backend Brain, Google Colab) |
 | `docs/FACE_SWAP_LOCAL.md` | Local NVIDIA RTX 5080 FaceFusion workstation spec (NSFW-capable, no cloud filter) |
