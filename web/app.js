@@ -506,6 +506,12 @@
     btn.disabled = false;
     input.focus();
     $("#btn-call").disabled = false;
+    var btnV = $("#btn-video-loop");
+    if (btnV) {
+      btnV.disabled = false;
+      btnV.title = c.scene ? "Play Living Video Loop" : "Generate Video Loop (~0.5s)";
+      btnV.textContent = c.scene ? "🎬" : "🎥";
+    }
     $("#btn-mic").disabled = !hasSTT;
     $("#btn-export-companion").disabled = false;
     $("#btn-favorite").disabled = false;
@@ -1303,6 +1309,7 @@
         matrixId: companionId,
         name: p.name,
         portrait: p.portrait,
+        scene: p.scene || null,
         style: "realistic",
         personality: personalityKey,
         appearance: p.appearance || "",
@@ -1317,10 +1324,9 @@
       state.companions.unshift(existing);
       save();
     } else {
-      if (p.portrait) {
-        existing.portrait = p.portrait;
-        save();
-      }
+      if (p.portrait) existing.portrait = p.portrait;
+      if (p.scene) existing.scene = p.scene;
+      save();
     }
 
     state.activeId = existing.id;
@@ -1359,6 +1365,65 @@
     checkMatrixStatus();
   }
 
+  
+  function initVideoLoopButton() {
+    var btn = $("#btn-video-loop");
+    if (!btn) return;
+    btn.onclick = function () {
+      var c = state.companions.filter(function (x) { return x.id === state.activeId; })[0];
+      if (!c) return;
+
+      if (c.scene) {
+        var headerInfo = $("#chat-header-info");
+        if (headerInfo) {
+          headerInfo.innerHTML = avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span>";
+        }
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "⏳";
+      btn.title = "Synthesizing video loop on local worker...";
+
+      var slug = c.presetId || c.matrixId || ("persona_" + c.id);
+      var matrixBase = (state.settings && state.settings.matrixUrl) || "http://127.0.0.1:7861";
+
+      fetch(matrixBase + "/api/video/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug: slug,
+          image_rel_path: c.portrait ? c.portrait.replace(matrixBase + "/", "").replace(/^\//, "") : ("images/" + slug + ".png"),
+          preset: "portrait_motion",
+          duration: 3.0
+        })
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          if (data.success && data.video_url) {
+            c.scene = matrixBase + data.video_url;
+            save();
+            renderChatList();
+            openChat(c.id);
+          } else {
+            throw new Error(data.error || "Failed");
+          }
+        })
+        .catch(function (err) {
+          console.error("Video loop error:", err);
+          alert("Video generator on port 7861 is offline. Start the Studio on 7861 to synthesize video loops.");
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = c.scene ? "🎬" : "🎥";
+        });
+    };
+  }
+
+  initVideoLoopButton();
   initMatrixBridge();
   initSettings();
   if (state.ageOk) showView("home");
