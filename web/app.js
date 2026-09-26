@@ -127,14 +127,25 @@
   function $(sel) { return document.querySelector(sel); }
   function $all(sel) { return [].slice.call(document.querySelectorAll(sel)); }
 
-  function showView(name) {
+  function showView(name, subtab) {
     $all(".view").forEach(function (v) { v.classList.add("hidden"); });
     var el = $("#view-" + name);
     if (el) el.classList.remove("hidden");
     $all(".nav-btn").forEach(function (b) {
       b.classList.toggle("active", b.dataset.view === name);
     });
+    if (name === "swap" && subtab && window.__flSwitchSwapTab) {
+      window.__flSwitchSwapTab(subtab);
+    }
   }
+
+  // Hook all data-subtab buttons on document
+  document.addEventListener("click", function (e) {
+    var target = e.target.closest("[data-view]");
+    if (target && target.dataset.subtab) {
+      showView(target.dataset.view, target.dataset.subtab);
+    }
+  });
 
   function uid() {
     return "c_" + Math.random().toString(36).slice(2, 10);
@@ -1366,37 +1377,63 @@
   }
 
   
-  function initVideoLoopButton() {
-    var btn = $("#btn-video-loop");
-    if (!btn) return;
-    btn.onclick = function () {
-      var c = state.companions.filter(function (x) { return x.id === state.activeId; })[0];
-      if (!c) return;
+  // ==========================================
+  // FLOATING VIDEO LIGHTBOX POP-UP MODAL
+  // ==========================================
+  var activeVideoCompanion = null;
 
-      if (c.scene) {
-        var headerInfo = $("#chat-header-info");
-        if (headerInfo) {
-          headerInfo.innerHTML = avatarHtml(c) + "<span>" + escapeHtml(c.name) + "</span>";
-        }
-        return;
+  window.__flOpenVideoModal = function (companion, autoGen) {
+    var c = companion || state.companions.filter(function (x) { return x.id === state.activeId; })[0];
+    if (!c) {
+      alert("No active companion selected. Select or make a companion first.");
+      return;
+    }
+    activeVideoCompanion = c;
+
+    var modal = $("#fl-video-modal");
+    var nameEl = $("#fl-video-name");
+    var player = $("#fl-video-player");
+    var loading = $("#fl-video-loading");
+    var wrap = $("#fl-video-player-wrap");
+    var presetSelect = $("#fl-video-preset-select");
+
+    if (!modal) return;
+    nameEl.textContent = (c.name || "Companion") + " — Living Video Loop";
+    modal.classList.remove("hidden");
+
+    var matrixBase = (state.settings && state.settings.matrixUrl) || "http://127.0.0.1:7861";
+
+    if (c.scene && !autoGen) {
+      loading.classList.add("hidden");
+      wrap.style.opacity = "1";
+      player.src = c.scene;
+      player.load();
+      player.play().catch(function () {});
+    } else {
+      // Need synthesis
+      loading.classList.remove("hidden");
+      wrap.style.opacity = "0.2";
+
+      var slug = c.presetId || c.matrixId || ("persona_" + (c.id || Date.now()));
+      var preset = (presetSelect ? presetSelect.value : "portrait_motion") || "portrait_motion";
+      var payload = {
+        slug: slug,
+        preset: preset,
+        duration: 3.0
+      };
+
+      if (c.portrait && c.portrait.startsWith("data:")) {
+        payload.image_base64 = c.portrait;
+      } else if (c.portrait) {
+        payload.image_rel_path = c.portrait.replace(matrixBase + "/", "").replace(/^\//, "");
+      } else {
+        payload.image_rel_path = "images/" + slug + ".png";
       }
-
-      btn.disabled = true;
-      btn.textContent = "⏳";
-      btn.title = "Synthesizing video loop on local worker...";
-
-      var slug = c.presetId || c.matrixId || ("persona_" + c.id);
-      var matrixBase = (state.settings && state.settings.matrixUrl) || "http://127.0.0.1:7861";
 
       fetch(matrixBase + "/api/video/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug: slug,
-          image_rel_path: c.portrait ? c.portrait.replace(matrixBase + "/", "").replace(/^\//, "") : ("images/" + slug + ".png"),
-          preset: "portrait_motion",
-          duration: 3.0
-        })
+        body: JSON.stringify(payload)
       })
         .then(function (res) {
           if (!res.ok) throw new Error("HTTP " + res.status);
@@ -1407,19 +1444,72 @@
             c.scene = matrixBase + data.video_url;
             save();
             renderChatList();
-            openChat(c.id);
+            loading.classList.add("hidden");
+            wrap.style.opacity = "1";
+            player.src = c.scene + "?t=" + Date.now();
+            player.load();
+            player.play().catch(function () {});
+
+            var btn = $("#btn-video-loop");
+            if (btn) btn.textContent = "🎬";
           } else {
-            throw new Error(data.error || "Failed");
+            throw new Error(data.error || "Failed synthesis");
           }
         })
         .catch(function (err) {
-          console.error("Video loop error:", err);
-          alert("Video generator on port 7861 is offline. Start the Studio on 7861 to synthesize video loops.");
-        })
-        .finally(function () {
-          btn.disabled = false;
-          btn.textContent = c.scene ? "🎬" : "🎥";
+          console.error("Video loop synthesis error:", err);
+          loading.classList.add("hidden");
+          wrap.style.opacity = "1";
+          alert("Video generator on port 7861 is offline or failed: " + err.message + ". Make sure catalog_server is running on port 7861.");
         });
+    }
+  };
+
+  window.__flCloseVideoModal = function () {
+    var modal = $("#fl-video-modal");
+    var player = $("#fl-video-player");
+    if (player) player.pause();
+    if (modal) modal.classList.add("hidden");
+  };
+
+  window.__flResynthVideo = function () {
+    if (activeVideoCompanion) {
+      window.__flOpenVideoModal(activeVideoCompanion, true);
+    }
+  };
+
+  window.__flDownloadVideo = function () {
+    if (!activeVideoCompanion || !activeVideoCompanion.scene) {
+      alert("No video synthesized yet to download.");
+      return;
+    }
+    var a = document.createElement("a");
+    a.href = activeVideoCompanion.scene;
+    a.download = (activeVideoCompanion.name || "companion").toLowerCase().replace(/\s+/g, "_") + "_loop.mp4";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  window.__flApplyVideoAvatar = function () {
+    if (!activeVideoCompanion || !activeVideoCompanion.scene) return;
+    save();
+    renderChatList();
+    var headerInfo = $("#chat-header-info");
+    if (headerInfo) {
+      headerInfo.innerHTML = avatarHtml(activeVideoCompanion) + "<span>" + escapeHtml(activeVideoCompanion.name) + "</span>";
+    }
+    alert("✨ Living video avatar activated for " + activeVideoCompanion.name + "!");
+  };
+
+  function initVideoLoopButton() {
+    var btn = $("#btn-video-loop");
+    if (!btn) return;
+    btn.onclick = function () {
+      var c = state.companions.filter(function (x) { return x.id === state.activeId; })[0];
+      if (c) {
+        window.__flOpenVideoModal(c);
+      }
     };
   }
 
