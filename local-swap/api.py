@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from facefusion_wrapper import SwapJob, run_swap, probe_health
@@ -18,6 +19,13 @@ EXAMPLE_PATH = APP_DIR / "settings.example.json"
 JOBS: dict[str, SwapJob] = {}
 
 app = FastAPI(title="FuckLike Local Swap", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def load_settings() -> dict:
