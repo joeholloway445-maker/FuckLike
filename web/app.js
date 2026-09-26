@@ -5,7 +5,7 @@
   // Leave empty to use local replies (works offline right now). Overridable at runtime from
   // Settings -> Developer -> "Gateway base URL override" (state.settings.apiBaseOverride),
   // which always wins when set — no validation, deliberately: this is a dev/test knob.
-  const API_BASE_DEFAULT = "";
+  const API_BASE_DEFAULT = "http://127.0.0.1:30000";
   function apiBase() {
     var override = state.settings && state.settings.apiBaseOverride;
     return (override && override.trim()) || API_BASE_DEFAULT;
