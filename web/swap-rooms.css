@@ -1,0 +1,68 @@
+.nav-links { overflow-x: auto; }
+
+.rooms-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr 280px;
+  gap: 1rem;
+  align-items: start;
+}
+.rooms-side h2, .swap-wrap h2 { margin-bottom: 0.35rem; }
+.rooms-side h3 { margin: 1rem 0 0.4rem; font-size: 0.85rem; color: var(--muted); }
+.shell-card, .room-item, .furn-item, .occ-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.45rem;
+}
+.shell-card button, .room-item { width: 100%; text-align: left; }
+.shell-card .name, .room-item .name { font-weight: 700; }
+.shell-card .vibe, .room-item .vibe { color: var(--muted); font-size: 0.78rem; }
+.room-item.active { border-color: var(--pink); background: var(--pink-soft); }
+.room-stage {
+  min-height: 340px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(255,77,141,0.28), transparent 45%),
+    radial-gradient(ellipse at 80% 80%, rgba(80,40,90,0.45), transparent 40%),
+    linear-gradient(180deg, #1a1020, #07060b);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 1.1rem;
+  position: relative;
+  overflow: hidden;
+}
+.room-stage h3 { font-size: 1.35rem; }
+.room-stage .stage-note { color: rgba(255,255,255,0.72); font-size: 0.85rem; max-width: 36rem; }
+.room-stage iframe {
+  position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000;
+}
+.rooms-actions { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; }
+.rooms-actions .dev-field { flex: 1; min-width: 180px; margin: 0; }
+.rooms-dock .row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.4rem 0 0.8rem; }
+.chip {
+  border: 1px solid var(--line); border-radius: 999px; padding: 0.25rem 0.65rem;
+  font-size: 0.78rem; color: var(--muted); background: var(--bg2);
+}
+.chip.on { color: var(--ink); border-color: var(--pink); background: var(--pink-soft); }
+.room-chat {
+  max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;
+  margin: 0.4rem 0;
+}
+.room-chat .line { font-size: 0.82rem; }
+.room-chat .who { color: var(--pink); font-weight: 600; }
+.swap-wrap { max-width: 640px; }
+.swap-health {
+  margin: 0.8rem 0 1rem; padding: 0.55rem 0.8rem; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--line); font-size: 0.88rem;
+}
+.swap-health.ok { border-color: #3d8f6e; }
+.swap-health.bad { border-color: var(--pink); }
+#swap-form label { display: block; margin-bottom: 0.85rem; font-size: 0.9rem; font-weight: 500; }
+#swap-form input[type="file"] { display: block; margin-top: 0.35rem; color: var(--muted); }
+#swap-result img, #swap-result video {
+  margin-top: 1rem; max-width: 100%; border-radius: 14px; border: 1px solid var(--line);
+}
+@media (max-width: 980px) {
+  .rooms-layout { grid-template-columns: 1fr; }
+}
