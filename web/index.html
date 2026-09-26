@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="swap-rooms.css" />
 </head>
 <body>
   <div id="app">
@@ -30,6 +31,8 @@
           <button data-view="gallery" class="nav-btn">Companions</button>
           <button data-view="create" class="nav-btn">Create</button>
           <button data-view="chat" class="nav-btn">Chat</button>
+          <button data-view="rooms" class="nav-btn">Rooms</button>
+          <button data-view="swap" class="nav-btn">Swap</button>
           <button data-view="store" class="nav-btn">Store</button>
           <button data-view="settings" class="nav-btn">Settings</button>
         </div>
@@ -41,9 +44,10 @@
           <p class="sub">Shape her look, personality, and desire. Chat with images, voice, and real chemistry — 24/7.</p>
           <div class="cta-row">
             <button class="btn btn-primary" data-view="create">Make your companion</button>
+            <button class="btn btn-secondary" data-view="rooms">Open a room</button>
             <button class="btn btn-secondary" data-view="gallery">Browse companions</button>
           </div>
-          <p class="trust">18+ · Private · Hardware optional · No download required</p>
+          <p class="trust">18+ · Private · Hardware optional · Rooms render in Unreal when the 5080 is awake</p>
         </div>
       </section>
 
@@ -153,10 +157,62 @@
         </div>
       </div>
 
+      <section id="view-rooms" class="view hidden">
+        <div class="rooms-layout">
+          <aside class="rooms-side">
+            <h2>Rooms</h2>
+            <p class="muted">IMVU-style hangouts. Unreal is the picture. This lobby still works if the engine is asleep.</p>
+            <div id="room-shells"></div>
+            <h3>Yours</h3>
+            <div id="room-list"></div>
+          </aside>
+          <div class="rooms-stage-wrap">
+            <div id="room-stage" class="room-stage">Pick a room shell and walk in.</div>
+            <div id="room-stream-status" class="muted"></div>
+            <div class="rooms-actions">
+              <button id="btn-launch-unreal" class="btn btn-primary" type="button">Launch Unreal room</button>
+              <label class="dev-field">Stream URL
+                <input id="room-stream-url" type="text" spellcheck="false" autocomplete="off" />
+              </label>
+            </div>
+          </div>
+          <aside class="rooms-dock" id="room-dock">
+            <p class="muted">Enter a room to place furniture, invite her, and run poses.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="view-swap" class="view hidden">
+        <div class="swap-wrap">
+          <h2>Face swap</h2>
+          <p class="muted">Local RTX 5080 worker. Faces stay on this machine.</p>
+          <p id="swap-health" class="swap-health">Checking worker…</p>
+          <form id="swap-form">
+            <label>Face to plant
+              <input type="file" id="swap-face" accept="image/*" />
+            </label>
+            <label>Target body / clip
+              <input type="file" id="swap-target" accept="image/*,video/*" />
+            </label>
+            <label class="check">
+              <input type="checkbox" id="swap-adult" />
+              I am 18+ and this is adult content
+            </label>
+            <label class="check">
+              <input type="checkbox" id="swap-consent" />
+              I have permission to use every real face in this swap
+            </label>
+            <button type="submit" id="swap-go" class="btn btn-primary" disabled>Swap</button>
+          </form>
+          <p id="swap-status" class="muted"></p>
+          <div id="swap-result"></div>
+        </div>
+      </section>
+
       <section id="view-store" class="view hidden">
         <div class="store-wrap">
           <h2>Store</h2>
-          <p class="muted">Test-mode checkout — no real card is charged yet (see Settings &gt; Developer for what's connected).</p>
+          <p class="muted">Test-mode checkout — no real card is charged yet (see Settings > Developer for what's connected).</p>
           <div id="store-balance" class="store-balance"></div>
           <div id="store-plans" class="store-plans"></div>
         </div>
@@ -182,7 +238,7 @@
             <h3>Experience</h3>
             <label class="toggle">
               <input type="checkbox" id="set-3d" />
-              <span>Prefer 3D spatial mode when available</span>
+              <span>Prefer Unreal room stream when the 5080 client is up</span>
             </label>
             <label class="toggle">
               <input type="checkbox" id="set-nsfw" checked />
@@ -233,5 +289,6 @@
     </div>
   </div>
   <script src="app.js"></script>
+  <script src="swap-rooms.js"></script>
 </body>
 </html>
